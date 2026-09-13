@@ -1,0 +1,75 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Build output
+dist/
+/build/
+
+# Environment files (create .env from .env.example)
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
+npm-run-debug.log*
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.sublime-workspace
+*.sublime-project
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
+coverage/
+.nyc_output/
+
+# Database
+.local/
+database/backups/
+*.db
+*.sqlite
+*.sqlite3
+
+# Temp files
+tmp/
+temp/
+
+# Miscellaneous
+*.bak
+*.swp
+*.swo
+*~
+
+# Docker
+docker-compose.override.yml
+
+# IDE
+.idea/
+.project
+.classpath
+.settings/
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
