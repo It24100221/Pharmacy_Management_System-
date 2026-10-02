@@ -1,0 +1,258 @@
+{
+  "observedAt": "2026-10-02T09:32:27.549Z",
+  "branch": "dev",
+  "commit": "9bdfd34b7a021b39ef60372a9817164a0b49d7b7",
+  "note": "Baseline only. Database-backed success and persistence are NOT verified. All POST/PUT probes intentionally fail validation before database writes.",
+  "results": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "status": 200,
+      "success": true,
+      "message": "Pharmacy Management API is running"
+    },
+    {
+      "method": "GET",
+      "path": "/api/medicines",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/medicines/1",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/medicines/low-stock",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/medicines/expiry-status",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/suppliers",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/suppliers/1",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/customers",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/customers/1",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/prescriptions",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/prescriptions/recent",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/prescriptions/1",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/prescriptions/1/availability",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/purchases",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/purchases/recent",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/purchases/1",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sales",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sales/recent",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sales/today-summary",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sales/1",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sales/1/receipt",
+      "status": 500,
+      "success": false,
+      "message": "Internal server error"
+    },
+    {
+      "method": "GET",
+      "path": "/api/not-a-route",
+      "status": 404,
+      "success": false,
+      "message": "Route GET /api/not-a-route not found"
+    },
+    {
+      "method": "POST",
+      "path": "/api/medicines",
+      "status": 400,
+      "success": false,
+      "message": "Medicine name is required; Expiry date is required",
+      "requestBody": "{}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/suppliers",
+      "status": 400,
+      "success": false,
+      "message": "Company name is required",
+      "requestBody": "{}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/customers",
+      "status": 400,
+      "success": false,
+      "message": "First name is required; Last name is required",
+      "requestBody": "{}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/prescriptions",
+      "status": 400,
+      "success": false,
+      "message": "Customer is required; Prescription date is required; At least one prescribed medicine is required",
+      "requestBody": "{}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/purchases",
+      "status": 400,
+      "success": false,
+      "message": "Supplier is required; Purchase date is required; At least one purchase item is required",
+      "requestBody": "{}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sales",
+      "status": 400,
+      "success": false,
+      "message": "At least one sale item is required",
+      "requestBody": "{}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/medicines",
+      "status": 400,
+      "success": false,
+      "message": "Expected property name or '}' in JSON at position 1 (line 1 column 2)",
+      "requestBody": "{"
+    },
+    {
+      "method": "POST",
+      "path": "/api/medicines",
+      "status": 500,
+      "success": false,
+      "message": "data.name.trim is not a function",
+      "requestBody": "{\"name\":123,\"expiry_date\":\"2027-01-01\"}"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/medicines/not-an-id",
+      "status": 400,
+      "success": false,
+      "message": "Invalid medicine ID",
+      "requestBody": "{}"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/suppliers/not-an-id",
+      "status": 400,
+      "success": false,
+      "message": "Invalid supplier ID",
+      "requestBody": "{}"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/customers/not-an-id",
+      "status": 400,
+      "success": false,
+      "message": "Invalid customer ID",
+      "requestBody": "{}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/prescriptions/not-an-id/send-to-billing",
+      "status": 400,
+      "success": false,
+      "message": "Invalid prescription ID",
+      "requestBody": "{}"
+    }
+  ]
+}

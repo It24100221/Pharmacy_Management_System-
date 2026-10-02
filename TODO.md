@@ -1,5 +1,7 @@
 # Implementation Tracker - Senevirathna Medical Pharmacy
 
+> Historical tracker. The current staged requirements and evidence are maintained in [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md), with the [2026-10-02 Stage 0 audit](docs/STAGE_0_AUDIT.md). Stage 0 is BLOCKED: the user confirmed SQL Server, while this checkout targets MySQL. Earlier checked boxes below do not establish live database persistence or completion of the new stage gates.
+
 Last updated: 2026-09-12
 
 This checklist tracks work against the UI/UX specification, image-reference guide, and Sprint 1 development guide. The approved ER diagram remains the authority for database structure when it becomes available.
