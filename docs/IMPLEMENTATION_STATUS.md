@@ -2,6 +2,22 @@
 
 Last audited: **2026-10-02 (Asia/Colombo)**. Scope: **Stage 0 only**.
 
+## Stage 0B baseline (recorded before any migration change)
+
+Recorded on 2026-10-02 before the MySQL → SQL Server migration work began.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Working tree | `git status --short` | Clean (only untracked `.freebuff/`) |
+| Branch | `git branch --show-current` | `dev` |
+| HEAD | `git log --oneline -1` | `f2cb37f chore: audit current dev implementation` |
+| Backend tests | `cd backend && npm test` | **13/13 PASS**, 0 fail |
+| Frontend tests | `cd frontend && npm test` | **9/9 PASS**, 0 fail |
+| Frontend production build | `cd frontend && npm run build` | **PASS** — 1960 modules, 3.48s, no errors |
+
+Environment observed at baseline: Windows (Git Bash/MSYS), Node v24.14.1, npm 11.11.0.
+No pre-existing failures were present; migration work proceeded from this baseline.
+
 ## CURRENT ACTIVE STAGE
 
 **Stage 0 — current system audit and baseline: BLOCKED.** Frontend and backend processes start, but the database-backed application is not verified and cannot receive PASS. No later stage has been started in this audit.
