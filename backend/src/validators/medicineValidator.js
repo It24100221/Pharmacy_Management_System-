@@ -1,164 +1,90 @@
 const ApiError = require('../middleware/errorHandler');
 
+const TYPES = ['Medicine', 'Baby Items', 'Lab Items', 'Medical Accessories'];
+const CODE = /^[A-Z0-9-]{2,32}$/;
+const URL_PATTERN = /^(https:\/\/.+|\/images\/[A-Za-z0-9/_-]+\.(?:png|jpe?g|webp|svg))$/i;
+
+function cleanText(value) { return value == null || value === '' ? null : String(value).trim(); }
+function number(value, label, integer = false) {
+  const parsed = Number(value);
+  if (value === null || value === '' || !Number.isFinite(parsed) || parsed < 0 || (integer && !Number.isInteger(parsed))) {
+    throw new ApiError(`${label} must be a non-negative ${integer ? 'integer' : 'number'}`, 400);
+  }
+  return parsed;
+}
+function flag(value, label) {
+  if (value === true || value === false) return value;
+  if (value === 1 || value === 0) return Boolean(value);
+  throw new ApiError(`${label} must be a boolean`, 400);
+}
+function date(value, required) {
+  if (value === null || value === '' || value === undefined) {
+    if (required) throw new ApiError('Expiry date is required', 400);
+    return null;
+  }
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+      Number.isNaN(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) {
+    throw new ApiError('Expiry date must be a valid date', 400);
+  }
+  return value;
+}
+
 class MedicineValidator {
-  // Validate medicine creation data
   static validateCreate(data) {
-    const errors = [];
-
-    // Name is required
-    if (!data.name || data.name.trim() === '') {
-      errors.push('Medicine name is required');
+    if (!data || typeof data.name !== 'string' || !data.name.trim()) throw new ApiError('Product name is required', 400);
+    if (typeof data.product_code !== 'string' || !CODE.test(data.product_code)) {
+      throw new ApiError('Product ID must be 2–32 uppercase letters, digits or hyphens', 400);
     }
-
-    // Price validation
-    if (data.unit_price === null || data.unit_price === '') {
-      errors.push('Unit price cannot be empty');
-    } else if (data.unit_price !== undefined) {
-      const price = parseFloat(data.unit_price);
-      if (isNaN(price)) {
-        errors.push('Unit price must be a valid number');
-      } else if (price < 0) {
-        errors.push('Unit price cannot be negative');
-      }
-    }
-
-    // Quantity validation
-    if (data.quantity === null || data.quantity === '') {
-      errors.push('Quantity cannot be empty');
-    } else if (data.quantity !== undefined) {
-      const quantity = parseInt(data.quantity);
-      if (isNaN(quantity)) {
-        errors.push('Quantity must be a valid number');
-      } else if (quantity < 0) {
-        errors.push('Quantity cannot be negative');
-      }
-    }
-
-    // Expiry date validation
-    if (!data.expiry_date) {
-      errors.push('Expiry date is required');
-    } else {
-      const expiryDate = new Date(data.expiry_date);
-      if (isNaN(expiryDate.getTime())) {
-        errors.push('Expiry date must be a valid date');
-      }
-    }
-
-    // Min stock level validation
-    if (data.min_stock_level !== undefined && data.min_stock_level !== null) {
-      const minStock = parseInt(data.min_stock_level);
-      if (isNaN(minStock)) {
-        errors.push('Minimum stock level must be a valid number');
-      } else if (minStock < 0) {
-        errors.push('Minimum stock level cannot be negative');
-      }
-    }
-
-    // Batch number (optional but should be valid if provided)
-    if (data.batch_number && data.batch_number.trim() === '') {
-      errors.push('Batch number cannot be empty');
-    }
-
-    if (errors.length > 0) {
-      throw new ApiError(errors.join('; '), 400);
-    }
-
+    const type = data.product_type || 'Medicine';
+    if (!TYPES.includes(type)) throw new ApiError('Invalid product type', 400);
+    const image = cleanText(data.image_url);
+    if (image && (image.length > 512 || !URL_PATTERN.test(image))) throw new ApiError('Image URL must be HTTPS or a local /images/ path under 512 characters', 400);
     return {
-      name: data.name.trim(),
-      description: data.description ? data.description.trim() : null,
-      generic_name: data.generic_name ? data.generic_name.trim() : null,
-      manufacturer: data.manufacturer ? data.manufacturer.trim() : null,
-      category: data.category ? data.category.trim() : null,
-      batch_number: data.batch_number ? data.batch_number.trim() : null,
-      quantity: data.quantity === undefined || data.quantity === null || data.quantity === '' ? 0 : parseInt(data.quantity),
-      unit_price: data.unit_price === undefined || data.unit_price === null || data.unit_price === '' ? 0 : parseFloat(data.unit_price),
-      expiry_date: data.expiry_date,
-      min_stock_level: data.min_stock_level === undefined || data.min_stock_level === null || data.min_stock_level === ''
-        ? 10
-        : parseInt(data.min_stock_level)
+      product_code: data.product_code, product_type: type,
+      name: data.name.trim(), description: cleanText(data.description),
+      generic_name: cleanText(data.generic_name), manufacturer: cleanText(data.manufacturer),
+      category: cleanText(data.category), batch_number: cleanText(data.batch_number),
+      quantity: data.quantity === undefined ? 0 : number(data.quantity, 'Quantity', true),
+      unit_price: data.unit_price === undefined ? 0 : number(data.unit_price, 'Unit price'),
+      expiry_date: date(data.expiry_date, type === 'Medicine'),
+      min_stock_level: data.min_stock_level === undefined ? 10 : number(data.min_stock_level, 'Minimum stock level', true),
+      image_url: image,
+      requires_prescription: data.requires_prescription === undefined ? type === 'Medicine' : flag(data.requires_prescription, 'Prescription requirement'),
+      is_active: data.is_active === undefined ? true : flag(data.is_active, 'Active state')
     };
   }
 
-  // Validate medicine update data
-  static validateUpdate(id, data) {
-    // Check ID is valid
-    const medicineId = parseInt(id);
-    if (isNaN(medicineId) || medicineId <= 0) {
-      throw new ApiError('Invalid medicine ID', 400);
+  static validateUpdate(id, data, existing = {}) {
+    if (!Number.isSafeInteger(Number(id)) || Number(id) <= 0) throw new ApiError('Invalid medicine ID', 400);
+    if (Object.hasOwn(data, 'product_code')) throw new ApiError('Product ID cannot be changed after creation', 400);
+    const update = {};
+    const type = data.product_type === undefined ? existing.product_type : data.product_type;
+    if (data.product_type !== undefined) {
+      if (!TYPES.includes(data.product_type)) throw new ApiError('Invalid product type', 400);
+      update.product_type = data.product_type;
     }
-
-    const errors = [];
-
-    // Validate fields if provided
     if (data.name !== undefined) {
-      if (data.name === null) {
-        throw new ApiError('Name cannot be set to null', 400);
-      }
-      if (data.name.trim() === '') {
-        errors.push('Medicine name cannot be empty');
-      }
+      if (typeof data.name !== 'string' || !data.name.trim()) throw new ApiError('Name cannot be set to null or empty', 400);
+      update.name = data.name.trim();
     }
-
-    if (data.unit_price === null || data.unit_price === '') {
-      errors.push('Unit price cannot be empty');
-    } else if (data.unit_price !== undefined) {
-      const price = parseFloat(data.unit_price);
-      if (isNaN(price)) {
-        errors.push('Unit price must be a valid number');
-      } else if (price < 0) {
-        errors.push('Unit price cannot be negative');
-      }
+    for (const key of ['description', 'generic_name', 'manufacturer', 'category', 'batch_number']) {
+      if (data[key] !== undefined) update[key] = cleanText(data[key]);
     }
-
-    if (data.quantity === null || data.quantity === '') {
-      errors.push('Quantity cannot be empty');
-    } else if (data.quantity !== undefined) {
-      const quantity = parseInt(data.quantity);
-      if (isNaN(quantity)) {
-        errors.push('Quantity must be a valid number');
-      } else if (quantity < 0) {
-        errors.push('Quantity cannot be negative');
-      }
+    if (data.quantity !== undefined) update.quantity = number(data.quantity, 'Quantity', true);
+    if (data.unit_price !== undefined) update.unit_price = number(data.unit_price, 'Unit price');
+    if (data.min_stock_level !== undefined) update.min_stock_level = number(data.min_stock_level, 'Minimum stock level', true);
+    if (data.expiry_date !== undefined) update.expiry_date = date(data.expiry_date, type === 'Medicine');
+    if (type === 'Medicine' && data.product_type === 'Medicine' && !data.expiry_date && !existing.expiry_date) {
+      throw new ApiError('Expiry date is required for medicine', 400);
     }
-
-    if (data.expiry_date === null || data.expiry_date === '') {
-      errors.push('Expiry date cannot be empty');
-    } else if (data.expiry_date !== undefined) {
-      const expiryDate = new Date(data.expiry_date);
-      if (isNaN(expiryDate.getTime())) {
-        errors.push('Expiry date must be a valid date');
-      }
+    if (data.image_url !== undefined) {
+      const image = cleanText(data.image_url);
+      if (image && (image.length > 512 || !URL_PATTERN.test(image))) throw new ApiError('Image URL must be HTTPS or a local /images/ path under 512 characters', 400);
+      update.image_url = image;
     }
-
-    if (data.min_stock_level === null || data.min_stock_level === '') {
-      errors.push('Minimum stock level cannot be empty');
-    } else if (data.min_stock_level !== undefined) {
-      const minStock = parseInt(data.min_stock_level);
-      if (isNaN(minStock)) {
-        errors.push('Minimum stock level must be a valid number');
-      } else if (minStock < 0) {
-        errors.push('Minimum stock level cannot be negative');
-      }
-    }
-
-    if (errors.length > 0) {
-      throw new ApiError(errors.join('; '), 400);
-    }
-
-    // Build update data (only include provided values)
-    const updateData = {};
-    if (data.name !== undefined) updateData.name = data.name.trim();
-    if (data.description !== undefined) updateData.description = data.description ? data.description.trim() : null;
-    if (data.generic_name !== undefined) updateData.generic_name = data.generic_name ? data.generic_name.trim() : null;
-    if (data.manufacturer !== undefined) updateData.manufacturer = data.manufacturer ? data.manufacturer.trim() : null;
-    if (data.category !== undefined) updateData.category = data.category ? data.category.trim() : null;
-    if (data.batch_number !== undefined) updateData.batch_number = data.batch_number ? data.batch_number.trim() : null;
-    if (data.quantity !== undefined) updateData.quantity = parseInt(data.quantity);
-    if (data.unit_price !== undefined) updateData.unit_price = parseFloat(data.unit_price);
-    if (data.expiry_date !== undefined) updateData.expiry_date = data.expiry_date;
-    if (data.min_stock_level !== undefined) updateData.min_stock_level = parseInt(data.min_stock_level);
-
-    return updateData;
+    if (data.requires_prescription !== undefined) update.requires_prescription = flag(data.requires_prescription, 'Prescription requirement');
+    if (data.is_active !== undefined) update.is_active = flag(data.is_active, 'Active state');
+    return update;
   }
 }
 

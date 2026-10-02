@@ -1,8 +1,8 @@
 import { homeForRole } from './auth.js'
 
 export const PUBLIC_LINKS = Object.freeze([
-  ['Home', '/'], ['About', '/#about'], ['Services', '/#services'],
-  ['Pharmacy Items', '/pharmacy-items'], ['Login', '/login'], ['Register', '/register'],
+  ['Home', '/'], ['About', '/about'], ['Services', '/services'],
+  ['Pharmacy Items', '/pharmacy-items'],
 ])
 
 const ROLE_LINKS = Object.freeze({
@@ -14,5 +14,12 @@ const ROLE_LINKS = Object.freeze({
 })
 
 export function linksForUser(user) {
-  return user ? [['Dashboard', homeForRole(user.role)], ...(ROLE_LINKS[user.role] || [])] : PUBLIC_LINKS
+  return user && user.role !== 'CUSTOMER'
+    ? [['Dashboard', homeForRole(user.role)], ...(ROLE_LINKS[user.role] || [])]
+    : PUBLIC_LINKS
+}
+
+export function accountLinksForUser(user) {
+  if (!user) return [['Login', '/login'], ['Register', '/register']]
+  return [['Dashboard', homeForRole(user.role)]]
 }

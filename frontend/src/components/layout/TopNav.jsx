@@ -2,7 +2,7 @@ import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Menu, Plus } from '../common/Icons.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { linksForUser } from '../../utils/navigation.js'
+import { linksForUser, accountLinksForUser } from '../../utils/navigation.js'
 
 export default function TopNav({ onMobileOpen }) {
   const { user, logout } = useAuth()
@@ -14,7 +14,8 @@ export default function TopNav({ onMobileOpen }) {
       <div className="nav-brand-text"><span className="nav-brand-name">Senevirathna</span><span className="nav-brand-sub">Medical Pharmacy</span></div>
     </Link>
     <div className="nav-links">{links.map(([label, path]) => <Link key={path} to={path} className="nav-link-item">{label}</Link>)}</div>
-    {user && <button type="button" className="nav-sale-button" onClick={signOut}>Logout</button>}
+    <div className="nav-account">{accountLinksForUser(user).map(([label, path]) => <Link key={path} to={path} className="nav-account-link">{label}</Link>)}
+      {user && <button type="button" className="nav-sale-button" onClick={signOut}>Logout</button>}</div>
     <button type="button" className="mobile-nav-toggle" onClick={onMobileOpen} aria-label="Open navigation" aria-haspopup="dialog"><Menu size={22} /></button>
   </div></nav>
 }

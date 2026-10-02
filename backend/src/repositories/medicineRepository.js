@@ -28,6 +28,11 @@ class MedicineRepository {
     let query = `
       SELECT
         m.id,
+        m.product_code,
+        m.product_type,
+        m.image_url,
+        m.requires_prescription,
+        m.is_active,
         m.name,
         m.description,
         m.generic_name,
@@ -103,6 +108,11 @@ class MedicineRepository {
     const query = `
       SELECT
         m.id,
+        m.product_code,
+        m.product_type,
+        m.image_url,
+        m.requires_prescription,
+        m.is_active,
         m.name,
         m.description,
         m.generic_name,
@@ -129,14 +139,20 @@ class MedicineRepository {
   async create(medicineData) {
     const query = `
       INSERT INTO medicines (
+        product_code, product_type, image_url, requires_prescription, is_active,
         name, description, generic_name, manufacturer, category,
         batch_number, quantity, unit_price, expiry_date, min_stock_level
       )
       OUTPUT INSERTED.id
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const values = [
+      medicineData.product_code,
+      medicineData.product_type,
+      medicineData.image_url,
+      medicineData.requires_prescription,
+      medicineData.is_active,
       medicineData.name,
       medicineData.description || null,
       medicineData.generic_name || null,
@@ -163,7 +179,8 @@ class MedicineRepository {
 
     const allowedFields = [
       'name', 'description', 'generic_name', 'manufacturer', 'category',
-      'batch_number', 'quantity', 'unit_price', 'expiry_date', 'min_stock_level'
+      'batch_number', 'quantity', 'unit_price', 'expiry_date', 'min_stock_level',
+      'product_type', 'image_url', 'requires_prescription', 'is_active'
     ];
     const fields = allowedFields.filter(field => Object.hasOwn(medicineData, field));
 

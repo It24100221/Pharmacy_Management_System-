@@ -30,7 +30,7 @@ const PrescriptionDetailsPage = () => {
     return (
       <div className="content-container" style={{ padding: 'var(--space-16)', textAlign: 'center' }}>
         <h2 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-4)' }}>Prescription not found</h2>
-        <button className="btn btn-primary" onClick={() => navigate('/')}>Back to Dashboard</button>
+        <button className="btn btn-primary" onClick={() => navigate('/prescription-dashboard')}>Back to Dashboard</button>
       </div>
     )
   }
@@ -71,14 +71,14 @@ const PrescriptionDetailsPage = () => {
         <div className="page-header-row">
           <div className="page-header-left">
             <div className="page-header-breadcrumb">
-              <Link to="/">Home</Link><span className="sep">/</span>
+              <Link to="/prescription-dashboard">Dashboard</Link><span className="sep">/</span>
               <span>Prescription #{prescription.id}</span>
             </div>
             <h1>Prescription #{prescription.id}</h1>
             <p>Prescription details for {prescription.customer_name || 'Customer'}</p>
           </div>
           <div className="page-header-actions">
-            <button className="btn btn-ghost" onClick={() => navigate('/')}>
+            <button className="btn btn-ghost" onClick={() => navigate('/prescription-dashboard')}>
               <ArrowLeft size={18} /> Back
             </button>
             <button className="btn btn-primary" onClick={sendToBilling}>

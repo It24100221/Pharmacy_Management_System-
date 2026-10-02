@@ -43,6 +43,7 @@ test('sale validation rejects unsupported payment methods', () => {
 
 test('medicine creation preserves explicit zero values', () => {
   const result = MedicineValidator.validateCreate({
+    product_code: 'P008',
     name: 'Test Medicine',
     expiry_date: '2027-01-01',
     quantity: 0,
@@ -58,6 +59,7 @@ test('medicine creation preserves explicit zero values', () => {
 test('medicine creation rejects an invalid expiry date', () => {
   assert.throws(
     () => MedicineValidator.validateCreate({
+      product_code: 'P008',
       name: 'Test Medicine',
       expiry_date: 'not-a-date'
     }),
@@ -82,6 +84,22 @@ test('medicine update permits optional fields to be cleared but rejects null req
   assert.equal(result.min_stock_level, 0);
   assert.throws(
     () => MedicineValidator.validateUpdate(1, { name: 'Medicine', quantity: null }),
-    error => error.statusCode === 400 && /Quantity cannot be empty/.test(error.message)
+    error => error.statusCode === 400 && /Quantity must be/.test(error.message)
   );
+});
+
+test('product creation requires a permanent code and supports non-expiring non-medicine items', () => {
+  assert.throws(() => MedicineValidator.validateCreate({ name: 'Test', product_type: 'Baby Items' }),
+    error => error.statusCode === 400 && /Product ID/.test(error.message));
+  const item = MedicineValidator.validateCreate({ name: 'Baby Cream', product_code: 'B001', product_type: 'Baby Items',
+    quantity: 2, unit_price: 200, requires_prescription: false });
+  assert.equal(item.expiry_date, null);
+  assert.equal(item.product_code, 'B001');
+  assert.equal(item.requires_prescription, false);
+});
+
+test('product ID is immutable and URLs are restricted to safe image references', () => {
+  assert.throws(() => MedicineValidator.validateUpdate(1, { product_code: 'P999' }), /cannot be changed/);
+  assert.throws(() => MedicineValidator.validateCreate({ name: 'Cream', product_code: 'B001',
+    product_type: 'Baby Items', image_url: 'javascript:alert(1)' }), /Image URL/);
 });

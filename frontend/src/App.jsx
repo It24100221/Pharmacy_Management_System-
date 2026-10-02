@@ -7,6 +7,8 @@ import RegisterPage from './pages/Auth/RegisterPage.jsx'
 import RoleDashboard from './pages/Auth/RoleDashboard.jsx'
 import UnauthorizedPage from './pages/Auth/UnauthorizedPage.jsx'
 import PublicItemsPage from './pages/Auth/PublicItemsPage.jsx'
+import AboutPage from './pages/Public/AboutPage.jsx'
+import ServicesPage from './pages/Public/ServicesPage.jsx'
 
 // Medicine pages
 import MedicineListPage from './pages/Medicines/MedicineListPage.jsx'
@@ -42,6 +44,8 @@ function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/services" element={<ServicesPage />} />
         <Route path="/pharmacy-items" element={<PublicItemsPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

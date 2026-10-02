@@ -16,9 +16,10 @@ const MedicineListPage = () => {
         const q = search.toLowerCase()
         if (
           !m.name.toLowerCase().includes(q) &&
-          !m.genericName.toLowerCase().includes(q) &&
-          !m.category.toLowerCase().includes(q) &&
-          !m.batchNumber.toLowerCase().includes(q)
+          !(m.genericName || '').toLowerCase().includes(q) &&
+          !(m.category || '').toLowerCase().includes(q) &&
+          !(m.batchNumber || '').toLowerCase().includes(q) &&
+          !(m.product_code || '').toLowerCase().includes(q)
         ) return false
       }
       if (stockStatus && m.stockStatus !== stockStatus) return false
@@ -37,6 +38,7 @@ const MedicineListPage = () => {
   }
 
   const renderExpiryBadge = (status, expiryDate) => {
+    if (!expiryDate) return <span className="badge badge-neutral">N/A</span>
     const daysLeft = Math.ceil((new Date(expiryDate) - new Date()) / (1000 * 60 * 60 * 24))
     switch (status) {
       case 'valid': return <span className="badge badge-valid"><CheckCircle size={12} /> VALID</span>
@@ -53,14 +55,14 @@ const MedicineListPage = () => {
         <div className="page-header-row">
           <div className="page-header-left">
             <div className="page-header-breadcrumb">
-              <Link to="/">Home</Link><span className="sep">/</span><span>Inventory</span>
+              <Link to="/inventory-dashboard">Dashboard</Link><span className="sep">/</span><span>Inventory</span>
             </div>
-            <h1>Medicine & Inventory</h1>
-            <p>Manage medicine details, current stock and expiry status.</p>
+            <h1>Products & Inventory</h1>
+            <p>Manage product details, current stock and expiry status.</p>
           </div>
           <div className="page-header-actions">
             <Link to="/medicines/add" className="btn btn-primary">
-              <Plus size={18} /> Add Medicine
+              <Plus size={18} /> Add Product
             </Link>
           </div>
         </div>
@@ -83,7 +85,7 @@ const MedicineListPage = () => {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)' }}>
             <AlertTriangle size={16} style={{ color: 'var(--warning)' }} />
-            <span><strong style={{ color: 'var(--warning)' }}>{medicines.filter(m => m.expiryStatus === 'near_expiry' || m.expiryStatus === 'expired').length}</strong> Near Expiry</span>
+            <span><strong style={{ color: 'var(--warning)' }}>{medicines.filter(m => m.expiryDate && (m.expiryStatus === 'near_expiry' || m.expiryStatus === 'expired')).length}</strong> Near Expiry</span>
           </div>
         </div>
 
@@ -95,7 +97,7 @@ const MedicineListPage = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, generic name, category, or batch..."
+              placeholder="Search by name, Product ID, category, or batch..."
               className="form-control"
             />
           </div>
@@ -121,7 +123,8 @@ const MedicineListPage = () => {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Medicine</th>
+                  <th>Product</th>
+                  <th>Product ID</th>
                   <th>Generic Name</th>
                   <th>Category</th>
                   <th>Batch</th>
@@ -138,8 +141,9 @@ const MedicineListPage = () => {
                 {filteredMedicines.map((medicine) => (
                   <tr key={medicine.id}>
                     <td><span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{medicine.name}</span></td>
+                    <td><code>{medicine.product_code}</code></td>
                     <td style={{ color: 'var(--text-secondary)' }}>{medicine.genericName}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{medicine.category}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{medicine.product_type}{medicine.category ? ` · ${medicine.category}` : ''}</td>
                     <td>
                       <code style={{
                         background: 'var(--surface-elevated)', padding: '2px 8px',
@@ -160,11 +164,11 @@ const MedicineListPage = () => {
                       </span>
                     </td>
                     <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{medicine.minStockLevel}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{medicine.expiryDate}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{medicine.expiryDate || 'N/A'}</td>
                     <td style={{ textAlign: 'center' }}>{renderStockBadge(medicine.stockStatus)}</td>
                     <td style={{ textAlign: 'center' }}>{renderExpiryBadge(medicine.expiryStatus, medicine.expiryDate)}</td>
                     <td style={{ textAlign: 'center' }}>
-                      <Link to={`/medicines/edit/${medicine.id}`} className="btn btn-ghost btn-sm" title="Edit Medicine">
+                      <Link to={`/medicines/edit/${medicine.id}`} className="btn btn-ghost btn-sm" title="Edit Product">
                         <Pencil size={16} /> Edit
                       </Link>
                     </td>
@@ -176,15 +180,15 @@ const MedicineListPage = () => {
         ) : (
           <div className="empty-state">
             <div className="empty-state-icon"><Pill size={36} /></div>
-            <h3 className="empty-state-title">No medicines found</h3>
+            <h3 className="empty-state-title">No products found</h3>
             <p className="empty-state-description">
               {search || stockStatus || expiryStatus
-                ? 'No medicines match your filters. Try adjusting your search criteria.'
-                : 'No medicines have been added yet. Add your first medicine to get started.'}
+                ? 'No products match your filters. Try adjusting your search criteria.'
+                : 'No products have been added yet. Add your first product to get started.'}
             </p>
             {!search && !stockStatus && !expiryStatus && (
               <Link to="/medicines/add" className="btn btn-primary">
-                <Plus size={18} /> Add First Medicine
+                <Plus size={18} /> Add First Product
               </Link>
             )}
           </div>

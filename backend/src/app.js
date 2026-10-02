@@ -31,9 +31,11 @@ const purchaseRoutes = require('./routes/purchaseRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
 const authRoutes = require('./routes/authRoutes');
+const catalogRoutes = require('./routes/catalogRoutes');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
+app.use('/api/catalog', catalogRoutes);
 app.use('/api/medicines', medicineRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/suppliers', supplierRoutes);

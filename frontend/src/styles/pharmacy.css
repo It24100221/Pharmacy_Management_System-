@@ -31,6 +31,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .nav-brand-name { font-size: 21px; letter-spacing: -.6px; color: #182c62; }
 .nav-brand-sub { font-size: 9px; letter-spacing: 1.9px; color: #626e87; margin-top: 5px; }
 .nav-links { border-radius: 30px; padding: 5px; gap: 0; background: #f5f7fc; margin-left: auto; }
+.nav-account { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.nav-account-link { color: #213968; font-size: 12px; font-weight: 700; padding: 10px 12px; white-space: nowrap; }
+.nav-account-link:last-of-type { background: #edf2fb; border-radius: 7px; }
 .nav-link-item { padding: 11px 15px; font-size: 12px; font-weight: 600; color: #334464; }
 .nav-link-item.active { background: white; color: var(--primary); box-shadow: 0 2px 8px #14254b08; }
 .nav-link-item:hover { background: #e9eef9; color: var(--primary); }
@@ -76,6 +79,57 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .pharmacy-carousel-dots button.active span { width: 15px; background: var(--primary); }
 .pharmacy-slide-count { font-size: 11px; font-weight: 700; margin-left: 4px; }
 .pharmacy-slide-count > span { color: #677389; font-weight: 400; }
+
+/* Stage 2 public pages and catalog. */
+.public-home .pharmacy-hero-inner { min-height: 530px; justify-content: center; }
+.public-section { padding-block: 78px; }
+.public-section-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 28px; }
+.public-section-heading h2, .public-band h2 { color: #142959; margin: 12px 0 0; }
+.public-section-heading > a { color: var(--primary); font-weight: 700; white-space: nowrap; }
+.public-category-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 18px; }
+.public-category-card { min-width: 0; display: block; border: 1px solid #dde5f1; background: #fff; border-radius: 14px; padding: 28px; color: #1b305c; box-shadow: 0 8px 24px #15234a0a; }
+.public-category-card:hover { border-color: #9db4e2; transform: translateY(-2px); }
+.public-category-card h3 { margin: 18px 0 9px; font-size: 17px; }
+.public-category-card p { min-height: 45px; color: #62708c; line-height: 1.5; }
+.public-category-card > span:last-child { color: var(--primary); font-weight: 700; font-size: 13px; }
+.public-category-mark { width: 44px; height: 44px; display: grid; place-items: center; background: #edf2fb; border-radius: 12px; color: #4167af; font-size: 25px; }
+.public-band { background: #edf3fc; }
+.public-band-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; padding-block: 74px; }
+.public-band p, .public-intro { color: #53627b; line-height: 1.8; max-width: 620px; }
+.public-band .pharmacy-button { margin-top: 20px; }
+.public-band img { width: 100%; height: 310px; object-fit: cover; border-radius: 16px; }
+.public-page { padding-block: 74px 100px; }
+.public-page > h1 { margin: 13px 0 15px; color: #142959; font-size: clamp(34px,4vw,52px); line-height: 1.15; }
+.public-page-lead { max-width: 760px; color: #53627b; line-height: 1.75; font-size: 16px; margin-bottom: 36px; }
+.public-info-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 22px; margin-bottom: 32px; }
+.public-info-grid article { background: #fff; border: 1px solid #dde5f1; border-radius: 13px; padding: 28px; }
+.public-info-grid h2 { margin: 0 0 10px; color: #1b305c; font-size: 21px; }
+.public-info-grid p { color: #5c6c87; line-height: 1.7; margin: 0; }
+.catalog-controls { display: flex; align-items: end; gap: 14px; flex-wrap: wrap; margin: 30px 0; }
+.catalog-controls label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 700; color: #213968; }
+.catalog-controls input, .catalog-controls select { height: 48px; border: 1px solid #cbd6e8; border-radius: 7px; padding: 0 14px; background: #fff; min-width: 0; }
+.catalog-search { flex: 1 1 290px; }.catalog-search input { width: 100%; }
+.catalog-filter { flex: 0 1 240px; }.catalog-filter select { width: 100%; }
+.catalog-controls .pharmacy-button { height: 48px; border: 0; cursor: pointer; }
+.catalog-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 22px; }
+.catalog-card { min-width: 0; background: #fff; border: 1px solid #dde5f1; border-radius: 13px; overflow: hidden; display: flex; flex-direction: column; }
+.catalog-image { aspect-ratio: 4/3; background: #edf2fa; }.catalog-image img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.catalog-card-body { display: flex; flex-direction: column; flex: 1; padding: 22px; }
+.catalog-type { color: #3f65a9; font-size: 12px; font-weight: 700; margin: 0 0 8px; }
+.catalog-card h2 { color: #1b305c; font-size: 19px; line-height: 1.35; margin: 0 0 8px; }
+.catalog-code { color: #586b89; font-size: 12px; margin: 0 0 13px; }
+.catalog-description { color: #65728a; font-size: 13px; line-height: 1.6; margin: 0 0 18px; }
+.catalog-card-bottom { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: auto; }
+.catalog-price { color: #142959; font-size: 18px; }.catalog-availability { border-radius: 30px; padding: 6px 10px; font-size: 11px; font-weight: 700; background: #e7f5eb; color: #166835; }
+.catalog-availability.low_stock { background: #fff3d9; color: #886000; }.catalog-availability.out_of_stock { background: #fce6e7; color: #9d2a34; }
+.catalog-prescription { color: #8b4c00; font-size: 12px; font-weight: 700; margin: 14px 0 0; }
+.catalog-state { text-align: center; padding: 75px 20px; background: #fff; border: 1px solid #dde5f1; border-radius: 12px; color: #53627b; }
+.catalog-result-count { color: #53627b; font-size: 13px; }.catalog-pages { display: flex; justify-content: center; align-items: center; gap: 18px; margin-top: 32px; }
+.catalog-pages button, .catalog-state button { border: 1px solid #b8c9e5; background: #fff; color: #1b4a9b; border-radius: 7px; padding: 10px 16px; cursor: pointer; }.catalog-pages button:disabled { opacity: .5; cursor: default; }
+.product-editor { max-width: 900px; padding-block: 35px 70px; }.product-editor .page-header-section { padding: 0 0 22px; }.product-editor .form-group { flex: 1 1 260px; }
+.product-code-help { color: #5c6c87; font-size: 12px; margin: -4px 0 20px; }.product-editor-flags { display: flex; flex-wrap: wrap; gap: 22px; margin: 20px 0; }.product-editor-flags label { display: flex; align-items: center; gap: 8px; }.product-editor-actions { display: flex; justify-content: end; gap: 12px; }
+@media (max-width: 1000px) { .nav-account { display: none; } .public-category-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .catalog-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 680px) { .public-category-grid, .public-info-grid, .public-band-inner, .catalog-grid { grid-template-columns: 1fr; } .public-section, .public-page { padding-block: 48px; } .public-section-heading { align-items: start; flex-direction: column; } .public-band-inner { gap: 28px; padding-block: 50px; } .catalog-filter { flex: 1 1 100%; } .catalog-controls .pharmacy-button { order: 3; width: 100%; } }
 
 /* Four direct routes into the existing pharmacy workflows. */
 .pharmacy-shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-block: 32px; border-bottom: 1px solid var(--border); }

@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ROLE_HOME, homeForRole, routeDecision } from '../src/utils/auth.js'
 import { TOKEN_KEY, getToken, setToken, clearToken } from '../src/utils/session.js'
-import { linksForUser } from '../src/utils/navigation.js'
+import { linksForUser, accountLinksForUser } from '../src/utils/navigation.js'
 
 test('every approved role redirects to its own dashboard', () => {
   assert.equal(Object.keys(ROLE_HOME).length, 5)
@@ -31,7 +31,10 @@ test('session token storage supports restoration and logout', () => {
 })
 
 test('public navigation has only public links and staff navigation is role-specific', () => {
-  assert.deepEqual(linksForUser(null).map(([label]) => label), ['Home', 'About', 'Services', 'Pharmacy Items', 'Login', 'Register'])
+  assert.deepEqual(linksForUser(null).map(([label]) => label), ['Home', 'About', 'Services', 'Pharmacy Items'])
+  assert.deepEqual(accountLinksForUser(null).map(([label]) => label), ['Login', 'Register'])
+  assert.deepEqual(linksForUser({ role: 'CUSTOMER' }), linksForUser(null))
+  assert.deepEqual(accountLinksForUser({ role: 'CUSTOMER' }), [['Dashboard', '/customer-dashboard']])
   const sales = linksForUser({ role: 'SALES_STAFF' }).map(([, path]) => path)
   assert.ok(sales.includes('/sales'))
   assert.equal(sales.includes('/prescriptions/create'), false)

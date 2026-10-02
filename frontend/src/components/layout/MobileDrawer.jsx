@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus, X } from '../common/Icons.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { linksForUser } from '../../utils/navigation.js'
+import { linksForUser, accountLinksForUser } from '../../utils/navigation.js'
 
 export default function MobileDrawer({ isOpen, onClose }) {
   const { user, logout } = useAuth()
@@ -35,6 +35,7 @@ export default function MobileDrawer({ isOpen, onClose }) {
         <div className="nav-brand-text"><span className="nav-brand-name">Senevirathna</span><span className="nav-brand-sub">Medical Pharmacy</span></div>
       </Link><button className="mobile-drawer-close" onClick={onClose} aria-label="Close navigation"><X size={18} /></button></div>
       <div className="mobile-drawer-nav">{links.map(([label, path]) => <Link className="mobile-nav-item" key={path} to={path} onClick={onClose}>{label}</Link>)}
+        {accountLinksForUser(user).map(([label, path]) => <Link className="mobile-nav-item" key={path} to={path} onClick={onClose}>{label}</Link>)}
         {user && <button className="mobile-nav-item" type="button" onClick={signOut}>Logout</button>}
       </div>
     </div>

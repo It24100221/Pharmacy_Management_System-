@@ -98,14 +98,14 @@ const CreatePrescriptionPage = () => {
         <div className="page-header-row">
           <div className="page-header-left">
             <div className="page-header-breadcrumb">
-              <Link to="/">Home</Link><span className="sep">/</span>
+              <Link to="/prescription-dashboard">Dashboard</Link><span className="sep">/</span>
               <span>Create Prescription</span>
             </div>
             <h1>Create Prescription</h1>
             <p>Record prescribed medicines and verify availability.</p>
           </div>
           <div className="page-header-actions">
-            <button className="btn btn-ghost" onClick={() => navigate('/')}>
+            <button className="btn btn-ghost" onClick={() => navigate('/prescription-dashboard')}>
               <ArrowLeft size={18} /> Back
             </button>
           </div>

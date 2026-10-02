@@ -2,11 +2,11 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, ChevronRight } from '../common/Icons.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { linksForUser } from '../../utils/navigation.js'
+import { linksForUser, accountLinksForUser } from '../../utils/navigation.js'
 
 const Footer = () => {
   const { user } = useAuth()
-  const links = linksForUser(user)
+  const links = [...linksForUser(user), ...accountLinksForUser(user)]
   const midpoint = Math.ceil(links.length / 2)
   return (
   <footer className="site-footer">

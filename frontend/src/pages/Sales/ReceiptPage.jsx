@@ -54,7 +54,7 @@ const ReceiptPage = () => {
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
             <button className="btn btn-secondary btn-sm" onClick={() => window.print()}><Printer size={16} /> Print</button>
             <button className="btn btn-primary btn-sm" onClick={() => navigate('/sales')}><ShoppingCart size={16} /> New Sale</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/')}><ArrowLeft size={16} /> Dashboard</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/sales-dashboard')}><ArrowLeft size={16} /> Dashboard</button>
           </div>
         </div>
 

@@ -1,16 +1,42 @@
 # Implementation status — Senevirathna Medical Pharmacy
 
-Last audited: **2026-10-02 (Asia/Colombo)**. Scope: **Stage 1 active**.
+Last audited: **2026-10-02 (Asia/Colombo)**. Scope: **Stage 2 complete at code level**.
 
 ## Official current status (supersedes historical gate notes below)
 
 - **Stage 0A — Repository Audit: PASS.**
 - **Stage 0B — MSSQL Code Migration: PASS.**
 - **Stage 0C — Live Environment Verification: DEFERRED.** Each team member manages SQL Server locally. Live connection, schema inspection, CRUD persistence, transaction and rollback checks remain required team environment verification, but do not block implementation.
-- **CURRENT ACTIVE STAGE: Stage 1 — Authentication, authorization and database foundation: PASS (code-level gate).**
-- **NEXT STAGE: Stage 2 — Public website / customer registration**, only after the Stage 1 gate passes. Stage 1 also includes the registration foundation and page required for authentication.
+- **Stage 1 — Authentication, authorization and database foundation: PASS (code-level gate).**
+- **Stage 2 — Public website and pharmacy items: PASS at code level.** Migration 002 and the local SQL Server verification remain for each team environment.
+- **NEXT STAGE: Stage 3 — Customer portal, cart and persistent orders**, only after Stage 2 passes. Stage 3 has not started.
 
 Stage 0 code-level foundation is complete. The live MSSQL verification task is deferred to each team member's local environment. Historical Stage 0B/0C notes below record the earlier connection-dependent gate interpretation and are not the current development policy.
+
+### Stage 2 pre-implementation audit (2026-10-02)
+
+| Requirement | Baseline | Evidence / missing work |
+| --- | --- | --- |
+| Public home | PARTIAL | `Dashboard.jsx` has a marketing hero, About/Services sections, but staff shortcuts, operational metrics and activity are mixed into the public page; hero buttons open staff routes |
+| Public navbar | PARTIAL | `TopNav.jsx` and `navigation.js` expose the required labels, but About/Services are hash links rather than pages and Login/Register sit in the same group; no dedicated customer links beyond Dashboard |
+| About and Services pages | MISSING | No `/about` or `/services` route or page |
+| Pharmacy Items | MISSING | `/pharmacy-items` is a placeholder without API data, cards, search or filters |
+| Product data and categories | PARTIAL | `medicines` has name, free-text subcategory, price, quantity, expiry and stock status; no four-way product type or public catalog API |
+| Permanent Product ID | MISSING | `medicines.id` is only an integer database key; no immutable `product_code` |
+| Product image and prescription flag | MISSING | No `image_url` or `requires_prescription` column; no card fallback |
+| Search/filter/availability | PARTIAL | Staff medicine API supports search/category/stock but requires authentication and has no public projection; catalog behavior missing |
+| Public/staff separation | PARTIAL | Stage 1 guards staff routes and API, yet homepage marketing links and metrics target internal operations |
+| Responsive verification | MISSING | Existing CSS has breakpoints; Stage 2 public pages and catalog have not been checked at desktop/tablet/mobile widths |
+
+Stage 2 extends the existing `medicines` product master and adds a read-only public catalog. Cart, orders, checkout, uploads, notifications and payment workflows remain outside this stage.
+
+### Stage 2 implementation gate (2026-10-02)
+
+**PASS at code level.** The public homepage is customer-facing, with the required hero and working links. `/about`, `/services`, and `/pharmacy-items` are routed and public. The desktop navbar has brand, four public links and account actions; mobile drawer provides the same routes. Authenticated staff links remain role-scoped, and Stage 1 route/API guards still deny signed-out and cross-role access.
+
+The read-only `/api/catalog` uses the SQL Server product master, returns only active public fields, supports bound and escaped search, four main product types and pagination, and derives availability from stock and expiry. Cards show image with fallback, Product ID, type/subcategory, server price, availability and prescription badge. Inventory Staff can assign a permanent `product_code` on creation, choose a main type, image and flags, and cannot change the code on edit. Migration 002 enforces `NOT NULL`, uniqueness, format and update immutability; seven known seed rows get stable P001–P007 codes. Unknown local rows require explicit shared code assignment before the migration completes.
+
+Verification: backend **37/37 PASS**, frontend **16/16 PASS**, production build **PASS**. Browser smoke used a test-only catalog fixture because no reachable team SQL Server was available here. Desktop 1440px, tablet 800px and mobile 375px layouts showed no horizontal overflow. Browser checks covered homepage/nav, About/Services, product cards, image fallback, price, stock and prescription labels, Product ID search, category filter, empty state, special-character query and signed-out staff-route redirect. No real SQL Server migration or live persistence was claimed. Each team member must run migration 002 and the live checklist in the SQL Server guide before operational deployment.
 
 ### Team environment verification (deferred, retained)
 

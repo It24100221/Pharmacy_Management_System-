@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const medicineRepository = require('../repositories/medicineRepository');
 const MedicineValidator = require('../validators/medicineValidator');
+const ApiError = require('../middleware/errorHandler');
 
 class MedicineController {
   // GET /api/medicines
@@ -62,7 +63,13 @@ class MedicineController {
     const validatedData = MedicineValidator.validateCreate(req.body);
 
     // Create medicine
-    const medicineId = await medicineRepository.create(validatedData);
+    let medicineId;
+    try {
+      medicineId = await medicineRepository.create(validatedData);
+    } catch (error) {
+      if (/UX_medicines_product_code/i.test(error.message || '')) throw new ApiError('Product ID already exists', 409);
+      throw error;
+    }
 
     // Fetch and return the created medicine
     const medicine = await medicineRepository.findById(medicineId);
@@ -79,7 +86,9 @@ class MedicineController {
     const id = req.params.id;
 
     // Validate request body
-    const validatedData = MedicineValidator.validateUpdate(id, req.body);
+    const existing = await medicineRepository.findById(id);
+    if (!existing) return res.status(404).json({ success: false, message: 'Product not found' });
+    const validatedData = MedicineValidator.validateUpdate(id, req.body, existing);
 
     // Update medicine
     const medicine = await medicineRepository.update(id, validatedData);
