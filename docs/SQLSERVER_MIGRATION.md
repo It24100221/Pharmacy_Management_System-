@@ -1,5 +1,7 @@
 # SQL Server migration — Stage 0B
 
+> **Database architecture decision (FINAL):** *Earlier Planned Database: MySQL* (legacy reference code only) · *Final Implemented Database: Microsoft SQL Server* (SSMS, Windows Authentication). No dual MySQL/MSSQL runtime support; all future schema changes go into `database/mssql/`.
+
 Status legend: `PLANNED` (identified, not yet changed) · `MIGRATED` (translated and covered by tests) · `BLOCKED` (cannot be verified without a live connection) · `REFERENCE` (kept deliberately, not runtime).
 
 Scope: **Stage 0B only** — migrate persistence from MySQL to Microsoft SQL Server, remove false-success frontend writes, preserve existing business rules. No authentication, roles, workflows or reporting changes.

@@ -3,9 +3,13 @@
 **Senevirathna Medical Pharmacy**
 **Project ID: ISE_WE_0101_19**
 
-A partially implemented web-based Pharmacy Management System built with React and Node.js/Express. The current code targets MySQL, but the project owner confirmed that the actual project uses Microsoft SQL Server (SSMS). Database integration is not yet verified.
+A partially implemented web-based Pharmacy Management System built with React and Node.js/Express.
 
-**Current status (2026-10-02): Stage 0 BLOCKED.** See [the implementation tracker](docs/IMPLEMENTATION_STATUS.md) and [the Stage 0 audit](docs/STAGE_0_AUDIT.md). The setup, schema, and feature checklists below describe the existing MySQL-oriented implementation; they are not evidence of a completed SQL Server-backed workflow. Do not apply the proposed MySQL scripts to the existing SQL Server database.
+**Earlier Planned Database: MySQL** — legacy implementation reference only. The MySQL scripts (`database/schema.sql`, `database/seed.sql`) are retained until migration is fully verified and must not be applied to the SQL Server database.
+
+**Final Implemented Database: Microsoft SQL Server** — administered with SSMS, Windows Authentication. The backend runs exclusively on `mssql` + `msnodesqlv8`; there is no dual MySQL/MSSQL runtime support. Database integration is not yet verified against a live instance.
+
+**Current status (2026-10-02): Stage 0 BLOCKED.** See [the implementation tracker](docs/IMPLEMENTATION_STATUS.md) and [the Stage 0 audit](docs/STAGE_0_AUDIT.md). The setup, schema, and feature checklists below describe the earlier MySQL-oriented implementation (Earlier Planned Database: MySQL); they are not evidence of a completed SQL Server-backed workflow. Do not apply the proposed MySQL scripts to the existing SQL Server database.
 
 The supplied SQL Server scripts are preserved in [database/mssql/](database/mssql/). The [schema review](docs/SQL_SERVER_SCHEMA_REVIEW.md) identifies the nine tables, trigger behavior, script differences and remaining connection requirements. Adding these reference files does not yet connect the current backend to SQL Server.
 
@@ -31,12 +35,13 @@ This system manages all aspects of pharmacy operations including:
 - Node.js
 - Express.js
 - JavaScript
-- mysql2/promise (MySQL connectivity)
+- mssql + msnodesqlv8 (SQL Server connectivity, Windows Authentication)
 - dotenv (environment configuration)
 - CORS
 
 ### Database
-- MySQL with InnoDB engine
+- **Final Implemented Database: Microsoft SQL Server** (administered with SSMS, Windows Authentication)
+- **Earlier Planned Database: MySQL** (legacy reference only)
 
 ## 📁 Project Structure
 
@@ -153,7 +158,7 @@ pharmacy-management-system/
 
 ### Prerequisites
 - Node.js (v16 or later)
-- MySQL (v8.0 or later)
+- Microsoft SQL Server (e.g. SQLEXPRESS) with SQL Server Management Studio (SSMS)
 - npm or yarn
 
 ### 1. Clone and Setup
@@ -167,18 +172,14 @@ cd pharmacy-management-system
 ### 2. Database Setup
 
 ```bash
-# Create MySQL database
-mysql -u root -p
+# Final Implemented Database: Microsoft SQL Server
+# Open SSMS, connect with Windows Authentication, then run:
+#   database/mssql/pharmacy_management_mssql.sql
+# (creates the pharmacy_management database, 9 tables, FKs, triggers and seed rows)
 
-# In MySQL:
-CREATE DATABASE pharmacy_management;
-EXIT;
-
-# Import schema
-mysql -u root -p pharmacy_management < database/schema.sql
-
-# Import seed data
-mysql -u root -p pharmacy_management < database/seed.sql
+# Earlier Planned Database: MySQL — legacy reference only, do NOT apply to SQL Server:
+#   mysql -u root -p pharmacy_management < database/schema.sql
+#   mysql -u root -p pharmacy_management < database/seed.sql
 ```
 
 ### 3. Backend Setup
@@ -192,13 +193,13 @@ npm install
 # Create environment file
 cp .env.example .env
 
-# Edit .env with your database credentials
+# Edit .env with your SQL Server connection settings
 # PORT=5000
-# DB_HOST=localhost
-# DB_PORT=3306
-# DB_USER=root
-# DB_PASSWORD=your_password
-# DB_NAME=pharmacy_management
+# DB_SERVER=HOST\SQLEXPRESS
+# DB_INSTANCE=SQLEXPRESS
+# DB_PORT=1433
+# DB_DATABASE=pharmacy_management
+# DB_TRUSTED_CONNECTION=true
 
 # Start the server
 npm start
@@ -392,7 +393,7 @@ The database includes the following tables:
 ## 🔒 Security & Validation
 
 - All inputs are validated on both frontend and backend
-- MySQL transactions ensure data integrity
+- SQL Server transactions protect every stock-changing operation (sales and purchases)
 - Stock levels are checked before sales
 - Insufficient stock prevents sale completion
 - Proper error messages are displayed
@@ -402,11 +403,11 @@ The database includes the following tables:
 ### Backend (.env)
 ```env
 PORT=5000
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=
-DB_NAME=pharmacy_management
+DB_SERVER=HOST\SQLEXPRESS
+DB_INSTANCE=SQLEXPRESS
+DB_PORT=1433
+DB_DATABASE=pharmacy_management
+DB_TRUSTED_CONNECTION=true
 NODE_ENV=development
 ```
 

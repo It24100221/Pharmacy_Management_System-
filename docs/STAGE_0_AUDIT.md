@@ -237,6 +237,12 @@ NEXT STAGE:
 
 # Stage 0B addendum — 2026-10-02 (SQL Server migration + false-success removal)
 
+**Database architecture decision (FINAL):** *Earlier Planned Database: MySQL*
+(legacy reference code only, files retained until verification) · *Final
+Implemented Database: Microsoft SQL Server* (SSMS, Windows Authentication). The
+migration below implements this decision; Stage 1 stays gated until Stage 0
+persistence and regression checks pass.
+
 **Outcome: still BLOCKED** — but the two blockers that could be addressed from the
 repository alone have been closed. What remains is exclusively the missing remote
 connection details.

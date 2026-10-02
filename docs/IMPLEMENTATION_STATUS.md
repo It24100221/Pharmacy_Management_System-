@@ -2,6 +2,31 @@
 
 Last audited: **2026-10-02 (Asia/Colombo)**. Scope: **Stage 0 only**.
 
+## Database architecture decision (FINAL, recorded 2026-10-02)
+
+The project team formally selected Microsoft SQL Server as the final and permanent
+runtime database for this project. The decision is final for the current project
+architecture (reason: the team is experienced with SQL Server scripts,
+administration and SSMS).
+
+Final database stack: **Microsoft SQL Server** engine · **SSMS** administration ·
+Node.js + Express backend · React + Vite frontend.
+
+| Record | Value |
+| --- | --- |
+| Earlier Planned Database | **MySQL** — legacy implementation reference code only (`database/schema.sql`, `database/seed.sql` retained until migration is fully verified; not deleted) |
+| Final Implemented Database | **Microsoft SQL Server** — `database/mssql/` scripts are the source of truth for all schema changes |
+
+Standing rules now in force:
+
+- `mysql2` must not remain the active runtime persistence layer (removed from `backend/package.json`).
+- No dual MySQL/MSSQL runtime support and no new MySQL-specific functionality.
+- All active repositories and database operations are migrated to SQL Server; all future database development uses SQL Server-compatible SQL.
+- Parameterized SQL only; SQL Server transactions protect every stock-changing operation.
+- The MSSQL database is the system's persistent source of truth.
+- Obsolete MySQL runtime dependencies may be removed only after migration and verification; old MySQL files are kept until their logic is safely migrated and verified.
+- **Stage 1 must not start until the MSSQL implementation passes all Stage 0 persistence and regression checks.**
+
 ## Stage 0B baseline (recorded before any migration change)
 
 Recorded on 2026-10-02 before the MySQL → SQL Server migration work began.
