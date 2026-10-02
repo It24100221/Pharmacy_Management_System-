@@ -1,9 +1,4 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
-import { mockMedicines } from '../data/mockMedicines.js'
-import { mockSuppliers } from '../data/mockSuppliers.js'
-import { mockCustomers } from '../data/mockCustomers.js'
-import { mockPrescriptions } from '../data/mockPrescriptions.js'
-import { mockSales } from '../data/mockSales.js'
 import { medicineService, supplierService, customerService, purchaseService, prescriptionService, salesService } from '../services/apiService.js'
 import {
   computeStockStatus,
@@ -15,6 +10,12 @@ import {
 } from '../utils/normalization.js'
 
 const AppContext = createContext(null)
+
+// A request that never reached the application (network failure), or one the
+// backend answered with 503 "Database unavailable". Everything else (2xx/4xx/500)
+// is a real API response and must be surfaced as a failure, never as an outage
+// excuse and never as a local success.
+const isUnreachable = (error) => !error?.response || error.response?.status === 503
 
 const loadState = (key, defaultValue) => {
   try {
@@ -34,12 +35,16 @@ const defaultActivity = [
   { id: 5, type: 'customer', title: 'New customer registered — Nimali Abeykoon', time: new Date(Date.now() - 86400000 * 2).toISOString(), icon: 'user' },
 ]
 
+// Stage 0B: business collections start EMPTY and are filled from the API only.
+// They are never seeded from mock files and never restored from localStorage,
+// so an unreachable backend can never masquerade as persisted data.
+// `activities` is a local UI feed (never business data) and stays local.
 const initialState = {
-  medicines: loadState('pharmacy_medicines', mockMedicines).map(normalizeMedicine),
-  suppliers: loadState('pharmacy_suppliers', mockSuppliers).map(normalizeSupplier),
-  customers: loadState('pharmacy_customers', mockCustomers).map(normalizeCustomer),
-  prescriptions: loadState('pharmacy_prescriptions', mockPrescriptions).map(normalizePrescription),
-  sales: loadState('pharmacy_sales', mockSales).map(normalizeSale),
+  medicines: [],
+  suppliers: [],
+  customers: [],
+  prescriptions: [],
+  sales: [],
   activities: loadState('pharmacy_activities', defaultActivity),
   toasts: [],
   loading: true,
@@ -142,12 +147,8 @@ export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(appReducer, initialState)
   const apiAvailableRef = useRef(true)
 
-  // Persist to localStorage (for offline fallback)
-  useEffect(() => { localStorage.setItem('pharmacy_medicines', JSON.stringify(state.medicines)) }, [state.medicines])
-  useEffect(() => { localStorage.setItem('pharmacy_suppliers', JSON.stringify(state.suppliers)) }, [state.suppliers])
-  useEffect(() => { localStorage.setItem('pharmacy_customers', JSON.stringify(state.customers)) }, [state.customers])
-  useEffect(() => { localStorage.setItem('pharmacy_prescriptions', JSON.stringify(state.prescriptions)) }, [state.prescriptions])
-  useEffect(() => { localStorage.setItem('pharmacy_sales', JSON.stringify(state.sales)) }, [state.sales])
+  // Persist the local activity feed only. Business records are never written
+  // to localStorage — persistence is exclusively the backend's job.
   useEffect(() => { localStorage.setItem('pharmacy_activities', JSON.stringify(state.activities)) }, [state.activities])
   useEffect(() => { localStorage.setItem('pharmacy_activity_next_id', JSON.stringify(nextActivityId)) }, [state.activities])
 
@@ -205,7 +206,7 @@ export function AppProvider({ children }) {
       dispatch({ type: 'SET_API_CONNECTED', payload: successfulRequests > 0 })
       dispatch({ type: 'SET_DATA', payload: loadData })
     } catch (error) {
-      console.warn('API unavailable, using local data:', error.message)
+      console.warn('API unavailable — business data stays empty until the server responds:', error.message)
       apiAvailableRef.current = false
       dispatch({ type: 'SET_API_CONNECTED', payload: false })
       dispatch({ type: 'SET_DATA', payload: {} })
@@ -224,395 +225,293 @@ export function AppProvider({ children }) {
     setTimeout(() => dispatch({ type: 'REMOVE_TOAST', payload: toastId }), 3000)
   }, [])
 
-  const markApiUnavailable = useCallback((error) => {
-    if (error?.response) return false
-    apiAvailableRef.current = false
-    dispatch({ type: 'SET_API_CONNECTED', payload: false })
-    return true
+  // --- Connection state -------------------------------------------------------
+  // These drive only the UI's "server unreachable" indicator and an automatic
+  // re-sync. They NEVER skip an API call and never convert a failed write into
+  // a local success.
+  const noteApiFailure = useCallback((error) => {
+    if (isUnreachable(error)) {
+      apiAvailableRef.current = false
+      dispatch({ type: 'SET_API_CONNECTED', payload: false })
+    }
   }, [])
 
-  // Medicine actions
+  // The API answered again: recover immediately and re-read server truth.
+  const noteApiSuccess = useCallback(() => {
+    if (!apiAvailableRef.current) {
+      apiAvailableRef.current = true
+      dispatch({ type: 'SET_API_CONNECTED', payload: true })
+      loadInitialData()
+    }
+  }, [loadInitialData])
+
+  // Every mutation ends in exactly one of these two: a real persisted record,
+  // or an explicit failure. There is no third, local, "offline" outcome.
+  const failWrite = useCallback((error, fallbackMessage) => {
+    noteApiFailure(error)
+    const message = error?.response?.data?.message || error?.message || fallbackMessage
+    showToast(message, 'error')
+    return { success: false, error: message }
+  }, [noteApiFailure, showToast])
+
+  const failUnexpected = useCallback((response, fallbackMessage) => {
+    const message = response?.message || fallbackMessage
+    showToast(message, 'error')
+    return { success: false, error: message }
+  }, [showToast])
+
+  // Medicine actions — API only. A failed write is reported as a failure; no
+  // local record, no generated id and no "offline" success toast.
   const addMedicine = async (data) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await medicineService.create(data)
-        if (res.success) {
-          const medicine = normalizeMedicine(res.data)
-          dispatch({ type: 'ADD_MEDICINE', payload: medicine })
-          showToast('Medicine added successfully', 'success')
-          return { success: true, data: medicine }
-        }
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          const newId = Math.max(0, ...state.medicines.map(m => m.id)) + 1
-          const medicine = normalizeMedicine({ ...data, id: newId })
-          dispatch({ type: 'ADD_MEDICINE', payload: medicine })
-          showToast('Medicine added (offline)', 'success')
-          return { success: true, data: medicine }
-        }
-        showToast(error.response?.data?.message || 'Failed to add medicine', 'error')
-        return { success: false, error: error.message }
-      }
-    } else {
-      // Local fallback
-      const newId = Math.max(0, ...state.medicines.map(m => m.id)) + 1
-      const medicine = normalizeMedicine({ ...data, id: newId })
+    try {
+      const res = await medicineService.create(data)
+      if (!res?.success) return failUnexpected(res, 'Failed to add medicine')
+      noteApiSuccess()
+      const medicine = normalizeMedicine(res.data)
       dispatch({ type: 'ADD_MEDICINE', payload: medicine })
-      showToast('Medicine added (offline)', 'success')
+      showToast('Medicine added successfully', 'success')
       return { success: true, data: medicine }
+    } catch (error) {
+      return failWrite(error, 'Failed to add medicine')
     }
   }
 
   const updateMedicine = async (id, data) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await medicineService.update(id, data)
-        if (res.success) {
-          const medicine = normalizeMedicine(res.data)
-          dispatch({ type: 'UPDATE_MEDICINE', payload: medicine })
-          showToast('Medicine updated successfully', 'success')
-          return { success: true, data: medicine }
-        }
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          const existing = state.medicines.find(m => m.id === Number(id)) || {}
-          const medicine = normalizeMedicine({ ...existing, ...data, id: Number(id) })
-          dispatch({ type: 'UPDATE_MEDICINE', payload: medicine })
-          showToast('Medicine updated (offline)', 'success')
-          return { success: true, data: medicine }
-        }
-        showToast(error.response?.data?.message || 'Failed to update medicine', 'error')
-        return { success: false, error: error.message }
-      }
-    } else {
-      const existing = state.medicines.find(m => m.id === Number(id)) || {}
-      const medicine = normalizeMedicine({ ...existing, ...data, id: Number(id) })
+    try {
+      const res = await medicineService.update(id, data)
+      if (!res?.success) return failUnexpected(res, 'Failed to update medicine')
+      noteApiSuccess()
+      const medicine = normalizeMedicine(res.data)
       dispatch({ type: 'UPDATE_MEDICINE', payload: medicine })
-      showToast('Medicine updated (offline)', 'success')
+      showToast('Medicine updated successfully', 'success')
       return { success: true, data: medicine }
+    } catch (error) {
+      return failWrite(error, 'Failed to update medicine')
     }
   }
 
-  // Supplier actions
+  // Supplier actions — API only
   const addSupplier = async (data) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await supplierService.create(data)
-        if (res.success) {
-          dispatch({ type: 'ADD_SUPPLIER', payload: normalizeSupplier(res.data) })
-          showToast('Supplier added successfully', 'success')
-          return { success: true }
-        }
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          const newId = Math.max(0, ...state.suppliers.map(s => s.id)) + 1
-          const supplier = { ...data, id: newId, status: 'active', created_at: new Date().toISOString() }
-          dispatch({ type: 'ADD_SUPPLIER', payload: supplier })
-          showToast('Supplier added (offline)', 'success')
-          return { success: true, data: supplier }
-        }
-        showToast(error.response?.data?.message || 'Failed to add supplier', 'error')
-        return { success: false, error: error.message }
-      }
-    } else {
-      const newId = Math.max(0, ...state.suppliers.map(s => s.id)) + 1
-      dispatch({ type: 'ADD_SUPPLIER', payload: { ...data, id: newId, status: 'active', created_at: new Date().toISOString() } })
-      showToast('Supplier added (offline)', 'success')
-      return { success: true }
+    try {
+      const res = await supplierService.create(data)
+      if (!res?.success) return failUnexpected(res, 'Failed to add supplier')
+      noteApiSuccess()
+      dispatch({ type: 'ADD_SUPPLIER', payload: normalizeSupplier(res.data) })
+      showToast('Supplier added successfully', 'success')
+      return { success: true, data: normalizeSupplier(res.data) }
+    } catch (error) {
+      return failWrite(error, 'Failed to add supplier')
     }
   }
 
   const updateSupplier = async (id, data) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await supplierService.update(id, data)
-        if (res.success) {
-          dispatch({ type: 'UPDATE_SUPPLIER', payload: normalizeSupplier(res.data) })
-          showToast('Supplier updated successfully', 'success')
-          return { success: true }
-        }
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          const supplier = { id: Number(id), ...data }
-          dispatch({ type: 'UPDATE_SUPPLIER', payload: supplier })
-          showToast('Supplier updated (offline)', 'success')
-          return { success: true, data: supplier }
-        }
-        showToast(error.response?.data?.message || 'Failed to update supplier', 'error')
-        return { success: false, error: error.message }
-      }
-    } else {
-      dispatch({ type: 'UPDATE_SUPPLIER', payload: { id: Number(id), ...data } })
-      showToast('Supplier updated (offline)', 'success')
-      return { success: true }
+    try {
+      const res = await supplierService.update(id, data)
+      if (!res?.success) return failUnexpected(res, 'Failed to update supplier')
+      noteApiSuccess()
+      dispatch({ type: 'UPDATE_SUPPLIER', payload: normalizeSupplier(res.data) })
+      showToast('Supplier updated successfully', 'success')
+      return { success: true, data: normalizeSupplier(res.data) }
+    } catch (error) {
+      return failWrite(error, 'Failed to update supplier')
     }
   }
 
-  // Customer actions
+  // Customer actions — API only
   const addCustomer = async (data) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await customerService.create(data)
-        if (res.success) {
-          dispatch({ type: 'ADD_CUSTOMER', payload: normalizeCustomer(res.data) })
-          showToast('Customer added successfully', 'success')
-          return { success: true }
-        }
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          const newId = Math.max(0, ...state.customers.map(c => c.id)) + 1
-          const customer = { ...data, id: newId, created_at: new Date().toISOString() }
-          dispatch({ type: 'ADD_CUSTOMER', payload: customer })
-          showToast('Customer added (offline)', 'success')
-          return { success: true, data: customer }
-        }
-        showToast(error.response?.data?.message || 'Failed to add customer', 'error')
-        return { success: false, error: error.message }
-      }
-    } else {
-      const newId = Math.max(0, ...state.customers.map(c => c.id)) + 1
-      dispatch({ type: 'ADD_CUSTOMER', payload: { ...data, id: newId, created_at: new Date().toISOString() } })
-      showToast('Customer added (offline)', 'success')
-      return { success: true }
+    try {
+      const res = await customerService.create(data)
+      if (!res?.success) return failUnexpected(res, 'Failed to add customer')
+      noteApiSuccess()
+      const customer = normalizeCustomer(res.data)
+      dispatch({ type: 'ADD_CUSTOMER', payload: customer })
+      showToast('Customer added successfully', 'success')
+      return { success: true, data: customer }
+    } catch (error) {
+      return failWrite(error, 'Failed to add customer')
     }
   }
 
   const updateCustomer = async (id, data) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await customerService.update(id, data)
-        if (res.success) {
-          dispatch({ type: 'UPDATE_CUSTOMER', payload: normalizeCustomer(res.data) })
-          showToast('Customer updated successfully', 'success')
-          return { success: true }
-        }
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          const customer = { id: Number(id), ...data }
-          dispatch({ type: 'UPDATE_CUSTOMER', payload: customer })
-          showToast('Customer updated (offline)', 'success')
-          return { success: true, data: customer }
-        }
-        showToast(error.response?.data?.message || 'Failed to update customer', 'error')
-        return { success: false, error: error.message }
-      }
-    } else {
-      dispatch({ type: 'UPDATE_CUSTOMER', payload: { id: Number(id), ...data } })
-      showToast('Customer updated (offline)', 'success')
-      return { success: true }
+    try {
+      const res = await customerService.update(id, data)
+      if (!res?.success) return failUnexpected(res, 'Failed to update customer')
+      noteApiSuccess()
+      const customer = normalizeCustomer(res.data)
+      dispatch({ type: 'UPDATE_CUSTOMER', payload: customer })
+      showToast('Customer updated successfully', 'success')
+      return { success: true, data: customer }
+    } catch (error) {
+      return failWrite(error, 'Failed to update customer')
     }
   }
 
-  // Prescription actions
+  // Prescription actions — API only
   const addPrescription = async (data) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await prescriptionService.create(data)
-        if (res.success) {
-          const prescription = normalizePrescription(res.data)
-          dispatch({ type: 'ADD_PRESCRIPTION', payload: prescription })
-          showToast('Prescription created successfully', 'success')
-          return { success: true, data: prescription }
-        }
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          const newId = Math.max(0, ...state.prescriptions.map(p => p.id)) + 1
-          const prescription = normalizePrescription({ ...data, id: newId, status: 'active', created_at: new Date().toISOString() })
-          dispatch({ type: 'ADD_PRESCRIPTION', payload: prescription })
-          showToast('Prescription created (offline)', 'success')
-          return { success: true, data: prescription }
-        }
-        showToast(error.response?.data?.message || 'Failed to create prescription', 'error')
-        return { success: false, error: error.message }
-      }
-    } else {
-      const newId = Math.max(0, ...state.prescriptions.map(p => p.id)) + 1
-      const prescription = normalizePrescription({ ...data, id: newId, status: 'active', created_at: new Date().toISOString() })
+    try {
+      const res = await prescriptionService.create(data)
+      if (!res?.success) return failUnexpected(res, 'Failed to create prescription')
+      noteApiSuccess()
+      const prescription = normalizePrescription(res.data)
       dispatch({ type: 'ADD_PRESCRIPTION', payload: prescription })
-      showToast('Prescription created (offline)', 'success')
+      showToast('Prescription created successfully', 'success')
       return { success: true, data: prescription }
+    } catch (error) {
+      return failWrite(error, 'Failed to create prescription')
     }
   }
 
+  // READ path: the API is always tried first. If the server is unreachable an
+  // already-loaded record may be displayed from the in-memory session cache
+  // (`cached: true`) — display only, never a write. An error that actually
+  // reached the API is reported as a failure.
   const getPrescriptionById = useCallback(async (id) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await prescriptionService.getById(id)
-        if (res.success) return { success: true, data: normalizePrescription(res.data) }
-      } catch (error) {
-        if (!markApiUnavailable(error)) {
-          return { success: false, error: error.response?.data?.message || error.message }
-        }
+    try {
+      const res = await prescriptionService.getById(id)
+      if (res?.success) {
+        noteApiSuccess()
+        return { success: true, data: normalizePrescription(res.data) }
       }
-    }
-
-    const prescription = state.prescriptions.find(p => p.id === Number(id))
-    return prescription
-      ? { success: true, data: normalizePrescription(prescription) }
-      : { success: false, error: 'Prescription not found' }
-  }, [markApiUnavailable, state.prescriptions])
-
-  const preparePrescriptionForBilling = useCallback(async (id, fallbackData) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await prescriptionService.sendToBilling(id)
-        if (res.success) {
-          return {
-            success: true,
-            data: {
-              customer: res.data.customer,
-              items: (res.data.items || []).map(item => ({
-                medicineId: Number(item.medicine_id),
-                medicineName: item.medicine_name,
-                batchNumber: item.batch_number,
-                unitPrice: Number(item.unit_price),
-                quantity: Number(item.requested_quantity),
-                lineTotal: Number(item.line_total),
-              })),
-              unavailableItems: res.data.unavailable_items || [],
-            },
-          }
-        }
-      } catch (error) {
-        if (!markApiUnavailable(error)) {
-          return { success: false, error: error.response?.data?.message || error.message }
-        }
+      return { success: false, error: res?.message || 'Prescription not found' }
+    } catch (error) {
+      if (isUnreachable(error)) {
+        noteApiFailure(error)
+        const cached = state.prescriptions.find(p => p.id === Number(id))
+        return cached
+          ? { success: true, data: normalizePrescription(cached), cached: true }
+          : { success: false, error: 'Cannot reach the server, and this prescription is not loaded' }
       }
+      return { success: false, error: error.response?.data?.message || error.message }
     }
+  }, [state.prescriptions, noteApiSuccess, noteApiFailure])
 
-    return { success: true, data: fallbackData }
-  }, [markApiUnavailable])
+  // Handoff to POS. The backend must confirm which lines are available, so an
+  // unreachable server is a FAILURE here — the client never invents a billing
+  // payload the database never validated.
+  const preparePrescriptionForBilling = useCallback(async (id) => {
+    try {
+      const res = await prescriptionService.sendToBilling(id)
+      if (!res?.success) return { success: false, error: res?.message || 'Failed to prepare prescription for billing' }
+      noteApiSuccess()
+      return {
+        success: true,
+        data: {
+          customer: res.data.customer,
+          items: (res.data.items || []).map(item => ({
+            medicineId: Number(item.medicine_id),
+            medicineName: item.medicine_name,
+            batchNumber: item.batch_number,
+            unitPrice: Number(item.unit_price),
+            quantity: Number(item.requested_quantity),
+            lineTotal: Number(item.line_total),
+          })),
+          unavailableItems: res.data.unavailable_items || [],
+        },
+      }
+    } catch (error) {
+      noteApiFailure(error)
+      const message = error.response?.data?.message ||
+        'Cannot reach the server to prepare this prescription for billing'
+      return { success: false, error: message }
+    }
+  }, [noteApiSuccess, noteApiFailure])
 
-  // Sale actions
+  // Sale actions — API only. If the sale cannot be persisted the operation
+  // FAILS: no local sale, no generated receipt number, no offline success.
   const createSale = async (data) => {
-    if (apiAvailableRef.current) {
-      let res
-      try {
-        res = await salesService.create(data)
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          return createLocalSale(data)
-        }
-        showToast(error.response?.data?.message || 'Failed to complete sale', 'error')
-        return { success: false, error: error.message }
-      }
-
-      if (res.success) {
-        const sale = normalizeSale(res.data)
-        dispatch({ type: 'ADD_SALE', payload: sale })
-
-        // Refresh stock separately: the sale has already committed and must
-        // never be recreated locally if this follow-up request fails.
-        let stockRefreshed = false
-        try {
-          const medRes = await medicineService.getAll({ pagination: 'false' })
-          if (medRes.success) {
-            const medData = medRes.data
-            const medicines = Array.isArray(medData) ? medData : (medData.medicines || [])
-            dispatch({ type: 'SET_MEDICINES', payload: medicines.map(normalizeMedicine) })
-            stockRefreshed = true
-          }
-        } catch (error) {
-          markApiUnavailable(error)
-        }
-
-        if (!stockRefreshed) {
-          data.items?.forEach(item => {
-            dispatch({ type: 'DECREASE_STOCK', payload: { medicineId: item.medicine_id || item.medicineId, quantity: item.quantity } })
-          })
-        }
-        showToast('Sale completed successfully!', 'success')
-        return { success: true, data: sale }
-      }
-    } else {
-      return createLocalSale(data)
+    let res
+    try {
+      res = await salesService.create(data)
+    } catch (error) {
+      return failWrite(error, 'Failed to complete sale')
     }
-  }
 
-  const createLocalSale = (data) => {
-    const newId = Math.max(0, ...state.sales.map(s => s.id)) + 1
-    const sale = normalizeSale({
-      ...data,
-      id: newId,
-      receipt_number: `REC-${String(newId).padStart(6, '0')}`,
-      created_at: new Date().toISOString(),
-    })
-    data.items?.forEach(item => {
-      dispatch({ type: 'DECREASE_STOCK', payload: { medicineId: item.medicine_id || item.medicineId, quantity: item.quantity } })
-    })
+    if (!res?.success) return failUnexpected(res, 'Failed to complete sale')
+    noteApiSuccess()
+
+    const sale = normalizeSale(res.data)
     dispatch({ type: 'ADD_SALE', payload: sale })
-    showToast('Sale completed (offline)', 'success')
+
+    // Refresh stock separately: the sale has already committed and must
+    // never be recreated locally if this follow-up request fails.
+    let stockRefreshed = false
+    try {
+      const medRes = await medicineService.getAll({ pagination: 'false' })
+      if (medRes.success) {
+        const medData = medRes.data
+        const medicines = Array.isArray(medData) ? medData : (medData.medicines || [])
+        dispatch({ type: 'SET_MEDICINES', payload: medicines.map(normalizeMedicine) })
+        stockRefreshed = true
+      }
+    } catch (error) {
+      noteApiFailure(error)
+    }
+
+    if (!stockRefreshed) {
+      // Reconcile the in-memory cache with a sale the database already
+      // committed — this is not a substitute for persistence.
+      data.items?.forEach(item => {
+        dispatch({ type: 'DECREASE_STOCK', payload: { medicineId: item.medicine_id || item.medicineId, quantity: item.quantity } })
+      })
+    }
+    showToast('Sale completed successfully!', 'success')
     return { success: true, data: sale }
   }
 
   const getReceipt = useCallback(async (id) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await salesService.getReceipt(id)
-        if (res.success) return { success: true, data: normalizeSale({ ...res.data, id }) }
-      } catch (error) {
-        if (!markApiUnavailable(error)) {
-          return { success: false, error: error.response?.data?.message || error.message }
-        }
+    try {
+      const res = await salesService.getReceipt(id)
+      if (res?.success) {
+        noteApiSuccess()
+        return { success: true, data: normalizeSale({ ...res.data, id }) }
       }
+      return { success: false, error: res?.message || 'Receipt not found' }
+    } catch (error) {
+      if (isUnreachable(error)) {
+        noteApiFailure(error)
+        const cached = state.sales.find(s => s.id === Number(id))
+        return cached
+          ? { success: true, data: normalizeSale(cached), cached: true }
+          : { success: false, error: 'Cannot reach the server, and this receipt is not loaded' }
+      }
+      return { success: false, error: error.response?.data?.message || error.message }
     }
+  }, [state.sales, noteApiSuccess, noteApiFailure])
 
-    const sale = state.sales.find(s => s.id === Number(id))
-    return sale
-      ? { success: true, data: normalizeSale(sale) }
-      : { success: false, error: 'Receipt not found' }
-  }, [markApiUnavailable, state.sales])
-
-  // Purchase actions (stock increase)
+  // Purchase actions (stock increase) — API only. If the purchase cannot be
+  // persisted the operation FAILS; stock is never increased locally.
   const receiveStock = async (data) => {
-    if (apiAvailableRef.current) {
-      let res
-      try {
-        res = await purchaseService.create(data)
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          data.items?.forEach(item => {
-            dispatch({ type: 'INCREASE_STOCK', payload: { medicineId: item.medicine_id || item.medicineId, quantity: item.quantity } })
-          })
-          showToast('Stock received (offline)', 'success')
-          return { success: true }
-        }
-        showToast(error.response?.data?.message || 'Failed to receive stock', 'error')
-        return { success: false, error: error.message }
-      }
-
-      if (res.success) {
-        let stockRefreshed = false
-        try {
-          const medRes = await medicineService.getAll({ pagination: 'false' })
-          if (medRes.success) {
-            const medData = medRes.data
-            const medicines = Array.isArray(medData) ? medData : (medData.medicines || [])
-            dispatch({ type: 'SET_MEDICINES', payload: medicines.map(normalizeMedicine) })
-            stockRefreshed = true
-          }
-        } catch (error) {
-          markApiUnavailable(error)
-        }
-
-        if (!stockRefreshed) {
-          data.items?.forEach(item => {
-            dispatch({ type: 'INCREASE_STOCK', payload: { medicineId: item.medicine_id || item.medicineId, quantity: item.quantity } })
-          })
-        }
-        showToast(`Stock received! ${data.items?.reduce((sum, i) => sum + Number(i.quantity), 0) || 0} units added.`, 'success')
-        return { success: true, data: res.data }
-      }
-    } else {
-      // Local fallback - increase stock
-      if (data.items) {
-        data.items.forEach(item => {
-          dispatch({ type: 'INCREASE_STOCK', payload: { medicineId: item.medicine_id || item.medicineId, quantity: item.quantity } })
-        })
-      }
-      showToast('Stock received (offline)', 'success')
-      return { success: true }
+    let res
+    try {
+      res = await purchaseService.create(data)
+    } catch (error) {
+      return failWrite(error, 'Failed to receive stock')
     }
+
+    if (!res?.success) return failUnexpected(res, 'Failed to receive stock')
+    noteApiSuccess()
+
+    let stockRefreshed = false
+    try {
+      const medRes = await medicineService.getAll({ pagination: 'false' })
+      if (medRes.success) {
+        const medData = medRes.data
+        const medicines = Array.isArray(medData) ? medData : (medData.medicines || [])
+        dispatch({ type: 'SET_MEDICINES', payload: medicines.map(normalizeMedicine) })
+        stockRefreshed = true
+      }
+    } catch (error) {
+      noteApiFailure(error)
+    }
+
+    if (!stockRefreshed) {
+      // Reconcile the cache with a purchase the database already committed.
+      data.items?.forEach(item => {
+        dispatch({ type: 'INCREASE_STOCK', payload: { medicineId: item.medicine_id || item.medicineId, quantity: item.quantity } })
+      })
+    }
+    showToast(`Stock received! ${data.items?.reduce((sum, i) => sum + Number(i.quantity), 0) || 0} units added.`, 'success')
+    return { success: true, data: res.data }
   }
 
   const value = {

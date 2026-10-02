@@ -5,10 +5,12 @@ import Footer from './Footer.jsx'
 import MobileDrawer from './MobileDrawer.jsx'
 import Toast from '../common/Toast.jsx'
 import ScrollToTop from '../common/ScrollToTop.jsx'
+import { useApp } from '../../context/AppContext.jsx'
 
 const AppLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { pathname, hash, key } = useLocation()
+  const { apiConnected, loading } = useApp()
 
   useEffect(() => {
     if (!hash) window.scrollTo({ top: 0, behavior: 'instant' })
@@ -26,6 +28,13 @@ const AppLayout = () => {
       </div>
       <TopNav onMobileOpen={() => setMobileOpen(true)} />
       <MobileDrawer isOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+
+      {!loading && !apiConnected && (
+        <div className="connection-banner" role="alert">
+          Cannot reach the pharmacy server. Nothing is being saved — the app
+          reconnects automatically as soon as the API responds again.
+        </div>
+      )}
 
       <main className="main-content" id="main-content" tabIndex={-1}>
         <div className="page-content">

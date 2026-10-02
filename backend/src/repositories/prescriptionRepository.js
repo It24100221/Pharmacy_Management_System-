@@ -1,6 +1,10 @@
 const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
 
+// Microsoft SQL Server implementation (Stage 0B).
+// `createWithItems` writes only the prescription header + items (no stock
+// change) inside a transaction.
+
 class PrescriptionRepository {
   // Get all prescriptions
   async findAll(filters = {}) {
@@ -46,16 +50,16 @@ class PrescriptionRepository {
       params.push(filters.end_date);
     }
 
+    // Deterministic order (OFFSET/FETCH requires a stable ORDER BY).
     query += ` ORDER BY p.prescription_date DESC, p.id DESC`;
 
-    // Pagination
     const page = parseInt(filters.page) || 1;
     const limit = parseInt(filters.limit) || 50;
     const offset = (page - 1) * limit;
 
     if (filters.pagination !== false) {
-      query += ` LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
+      query += ` OFFSET ? ROWS FETCH NEXT ? ROWS ONLY`;
+      params.push(offset, limit);
     }
 
     const [rows] = await pool.execute(query, params);
@@ -129,6 +133,7 @@ class PrescriptionRepository {
       // 1. Create prescription header
       const prescriptionQuery = `
         INSERT INTO prescriptions (customer_id, prescription_date, instructions, notes)
+        OUTPUT INSERTED.id
         VALUES (?, ?, ?, ?)
       `;
 
@@ -139,7 +144,7 @@ class PrescriptionRepository {
         prescriptionData.notes || null
       ]);
 
-      prescriptionId = prescriptionResult.insertId;
+      prescriptionId = prescriptionResult[0].id;
 
       // 2. Create prescription items
       const itemQuery = `
@@ -170,7 +175,8 @@ class PrescriptionRepository {
     return this.findById(prescriptionId);
   }
 
-  // Check availability of prescribed medicines
+  // Check availability of prescribed medicines (read-only).
+  // Statuses preserved exactly: out_of_stock / expired / available / insufficient.
   async checkAvailability(prescriptionId) {
     const query = `
       SELECT
@@ -186,7 +192,7 @@ class PrescriptionRepository {
         pi.quantity AS requested_quantity,
         CASE
           WHEN m.id IS NULL OR m.quantity <= 0 THEN 'out_of_stock'
-          WHEN m.expiry_date < CURDATE() THEN 'expired'
+          WHEN m.expiry_date < CAST(GETDATE() AS DATE) THEN 'expired'
           WHEN m.quantity >= pi.quantity THEN 'available'
           ELSE 'insufficient'
         END AS availability_status,
@@ -203,13 +209,10 @@ class PrescriptionRepository {
 
   // Get total count
   async getCount(filters = {}) {
-    let query = `
-      SELECT COUNT(DISTINCT p.id) as total
+    let query = `SELECT COUNT(DISTINCT p.id) AS total
       FROM prescriptions p
       LEFT JOIN customers c ON p.customer_id = c.id
-      WHERE 1=1
-    `;
-
+      WHERE 1=1`;
     const params = [];
 
     if (filters.search) {
@@ -246,8 +249,8 @@ class PrescriptionRepository {
         CONCAT(c.first_name, ' ', c.last_name) AS customer_name
       FROM prescriptions p
       LEFT JOIN customers c ON p.customer_id = c.id
-      ORDER BY p.prescription_date DESC
-      LIMIT ?
+      ORDER BY p.prescription_date DESC, p.id DESC
+      OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY
     `;
 
     const [rows] = await pool.execute(query, [limit]);

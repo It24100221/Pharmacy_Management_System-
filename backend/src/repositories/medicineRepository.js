@@ -1,6 +1,27 @@
 const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
 
+// Microsoft SQL Server implementation (Stage 0B).
+// Placeholders stay positional `?` — the central database module converts them
+// to named `@pN` markers and binds every value with request.input().
+
+const TODAY = `CAST(GETDATE() AS DATE)`;
+const NEAR_EXPIRY_CUTOFF = `DATEADD(DAY, 30, ${TODAY})`;
+
+const STOCK_STATUS_CASE = `
+        CASE
+          WHEN m.quantity = 0 THEN 'out_of_stock'
+          WHEN m.quantity <= m.min_stock_level THEN 'low_stock'
+          ELSE 'in_stock'
+        END AS stock_status`;
+
+const EXPIRY_STATUS_CASE = `
+        CASE
+          WHEN m.expiry_date < ${TODAY} THEN 'expired'
+          WHEN m.expiry_date <= ${NEAR_EXPIRY_CUTOFF} THEN 'near_expiry'
+          ELSE 'valid'
+        END AS expiry_status`;
+
 class MedicineRepository {
   // Get all medicines with optional filters
   async findAll(filters = {}) {
@@ -19,16 +40,8 @@ class MedicineRepository {
         m.min_stock_level,
         m.created_at,
         m.updated_at,
-        CASE
-          WHEN m.quantity = 0 THEN 'out_of_stock'
-          WHEN m.quantity <= m.min_stock_level THEN 'low_stock'
-          ELSE 'in_stock'
-        END AS stock_status,
-        CASE
-          WHEN m.expiry_date < CURDATE() THEN 'expired'
-          WHEN m.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'near_expiry'
-          ELSE 'valid'
-        END AS expiry_status
+        ${STOCK_STATUS_CASE},
+        ${EXPIRY_STATUS_CASE}
       FROM medicines m
       WHERE 1=1
     `;
@@ -62,22 +75,23 @@ class MedicineRepository {
     // Expiry status filter
     if (filters.expiry_status) {
       if (filters.expiry_status === 'expired') {
-        query += ` AND m.expiry_date < CURDATE()`;
+        query += ` AND m.expiry_date < ${TODAY}`;
       } else if (filters.expiry_status === 'near_expiry') {
-        query += ` AND m.expiry_date >= CURDATE() AND m.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)`;
+        query += ` AND m.expiry_date >= ${TODAY} AND m.expiry_date <= ${NEAR_EXPIRY_CUTOFF}`;
       }
     }
 
-    query += ` ORDER BY m.name ASC`;
+    // Deterministic order is required: SQL Server rejects OFFSET/FETCH without
+    // a stable ORDER BY, and duplicate medicine names are possible.
+    query += ` ORDER BY m.name ASC, m.id ASC`;
 
-    // Pagination
     const page = parseInt(filters.page) || 1;
     const limit = parseInt(filters.limit) || 50;
     const offset = (page - 1) * limit;
 
     if (filters.pagination !== false) {
-      query += ` LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
+      query += ` OFFSET ? ROWS FETCH NEXT ? ROWS ONLY`;
+      params.push(offset, limit);
     }
 
     const [rows] = await pool.execute(query, params);
@@ -101,16 +115,8 @@ class MedicineRepository {
         m.min_stock_level,
         m.created_at,
         m.updated_at,
-        CASE
-          WHEN m.quantity = 0 THEN 'out_of_stock'
-          WHEN m.quantity <= m.min_stock_level THEN 'low_stock'
-          ELSE 'in_stock'
-        END AS stock_status,
-        CASE
-          WHEN m.expiry_date < CURDATE() THEN 'expired'
-          WHEN m.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'near_expiry'
-          ELSE 'valid'
-        END AS expiry_status
+        ${STOCK_STATUS_CASE},
+        ${EXPIRY_STATUS_CASE}
       FROM medicines m
       WHERE m.id = ?
     `;
@@ -125,7 +131,9 @@ class MedicineRepository {
       INSERT INTO medicines (
         name, description, generic_name, manufacturer, category,
         batch_number, quantity, unit_price, expiry_date, min_stock_level
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      )
+      OUTPUT INSERTED.id
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const values = [
@@ -141,8 +149,8 @@ class MedicineRepository {
       medicineData.min_stock_level ?? 10
     ];
 
-    const [result] = await pool.execute(query, values);
-    return result.insertId;
+    const [rows] = await pool.execute(query, values);
+    return rows[0].id;
   }
 
   // Update medicine
@@ -180,7 +188,7 @@ class MedicineRepository {
         (m.min_stock_level - m.quantity) AS shortage
       FROM medicines m
       WHERE m.quantity > 0 AND m.quantity <= m.min_stock_level
-      ORDER BY m.quantity ASC
+      ORDER BY m.quantity ASC, m.id ASC
     `;
 
     const [rows] = await pool.execute(query);
@@ -196,22 +204,22 @@ class MedicineRepository {
         m.expiry_date,
         m.quantity,
         CASE
-          WHEN m.expiry_date < CURDATE() THEN 'expired'
-          WHEN m.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'near_expiry'
+          WHEN m.expiry_date < ${TODAY} THEN 'expired'
+          WHEN m.expiry_date <= ${NEAR_EXPIRY_CUTOFF} THEN 'near_expiry'
           ELSE 'valid'
         END AS expiry_status,
-        DATEDIFF(m.expiry_date, CURDATE()) AS days_until_expiry
+        DATEDIFF(DAY, ${TODAY}, m.expiry_date) AS days_until_expiry
       FROM medicines m
       WHERE 1=1
     `;
 
     if (status === 'expired') {
-      query += ` AND m.expiry_date < CURDATE()`;
+      query += ` AND m.expiry_date < ${TODAY}`;
     } else if (status === 'near_expiry') {
-      query += ` AND m.expiry_date >= CURDATE() AND m.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)`;
+      query += ` AND m.expiry_date >= ${TODAY} AND m.expiry_date <= ${NEAR_EXPIRY_CUTOFF}`;
     }
 
-    query += ` ORDER BY m.expiry_date ASC`;
+    query += ` ORDER BY m.expiry_date ASC, m.id ASC`;
 
     const [rows] = await pool.execute(query);
     return rows;
@@ -219,7 +227,7 @@ class MedicineRepository {
 
   // Get total count
   async getCount(filters = {}) {
-    let query = `SELECT COUNT(*) as total FROM medicines m WHERE 1=1`;
+    let query = `SELECT COUNT(*) AS total FROM medicines m WHERE 1=1`;
     const params = [];
 
     if (filters.search) {
@@ -242,9 +250,9 @@ class MedicineRepository {
     }
 
     if (filters.expiry_status === 'expired') {
-      query += ` AND m.expiry_date < CURDATE()`;
+      query += ` AND m.expiry_date < ${TODAY}`;
     } else if (filters.expiry_status === 'near_expiry') {
-      query += ` AND m.expiry_date >= CURDATE() AND m.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)`;
+      query += ` AND m.expiry_date >= ${TODAY} AND m.expiry_date <= ${NEAR_EXPIRY_CUTOFF}`;
     }
 
     const [rows] = await pool.execute(query, params);

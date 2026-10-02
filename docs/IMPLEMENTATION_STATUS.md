@@ -18,24 +18,83 @@ Recorded on 2026-10-02 before the MySQL → SQL Server migration work began.
 Environment observed at baseline: Windows (Git Bash/MSYS), Node v24.14.1, npm 11.11.0.
 No pre-existing failures were present; migration work proceeded from this baseline.
 
+## Stage 0B — SQL Server migration (worked 2026-10-02)
+
+### What changed
+
+- **One runtime database.** `mysql2` removed from `backend/package.json`. The
+  persistence layer is now `mssql` + `msnodesqlv8` (the only maintained Node
+  driver that performs **Windows Authentication** with the current process
+  token). Central module: [`backend/src/config/database.js`](../backend/src/config/database.js).
+- **All six repositories translated** to SQL Server syntax: `CAST(GETDATE() AS DATE)`,
+  `DATEADD`, `DATEDIFF(DAY, …)`, `SYSDATETIME()`, `OFFSET … FETCH`,
+  `OUTPUT INSERTED.id`, derived-table aggregation (SQL Server rejects the old
+  bare-column `GROUP BY p.id`), and `WITH (UPDLOCK, ROWLOCK)` inside a
+  SERIALIZABLE transaction in place of MySQL `SELECT … FOR UPDATE`.
+- **Parameter binding preserved:** repository `?` markers are converted to
+  named `@pN` markers in the central module and bound with
+  `request.input()` — no value is ever concatenated into SQL.
+- **False-success offline writes removed** (`frontend/src/context/AppContext.jsx`):
+  business collections start empty and are API-only; every mutation either
+  persists on the server or returns `success:false` + an error toast; no local
+  record, no `max(id)+1` id, no "(offline)" success. The connection flag no
+  longer latches: every request is still attempted and the next success flips
+  it back and re-syncs server data.
+- **Truthful health/startup:** `/api/health` reports `database.status`,
+  `server`, `name`, `login`, `base_tables` and `ready`; `server.js` probes the
+  database at boot and prints an explicit failure line.
+- Migration matrix and design record: [`docs/SQLSERVER_MIGRATION.md`](SQLSERVER_MIGRATION.md).
+  Failure-path evidence: [`docs/audits/stage-0b/db-failure-probes.txt`](audits/stage-0b/db-failure-probes.txt).
+
+### Stage 0 gate record after Stage 0B
+
+- [x] Backend test suite passes — **23/23** (13 baseline + 10 new migration tests)
+- [x] Frontend test suite passes — **9/9**
+- [x] Frontend production build passes — 1956 modules, no errors
+- [x] Backend uses SQL Server runtime persistence (single implementation)
+- [x] MySQL is no longer the active runtime database (`mysql2` removed)
+- [ ] **Node backend successfully connects to actual SQL Server** — BLOCKED (no server details)
+- [ ] **Windows Authentication verified** — BLOCKED (needs the same connection)
+- [ ] **Real database schema verified** — scripts reviewed (`database/mssql/`), live metadata not inspected
+- [ ] CREATE persists · [ ] READ works · [ ] UPDATE persists · [ ] Restart preserves data — BLOCKED
+- [ ] Purchase increases stock exactly once · [ ] Sale decreases stock exactly once — BLOCKED
+- [ ] Failed transaction rolls back correctly — BLOCKED (unit-tested with stubs only)
+- [x] Database outage does not create false-success frontend data — proven in browser (see evidence file)
+- [x] API can recover after a temporary outage — request path re-issued after backend restart; full "connected + resync" proof needs a live database
+- [x] No major existing functionality regression — routes, APIs, validation, 404s unchanged
+- [x] `SQLSERVER_MIGRATION.md` written
+- [x] `IMPLEMENTATION_STATUS.md` updated
+- [x] `STAGE_0_AUDIT.md` updated
+- [ ] Working tree clean or changes committed — done as part of this update
+
+**Stage 0 status: BLOCKED** (not PASS, not FAIL). Everything not dependent on the
+remote SQL Server passes; the connection-dependent gate items cannot be attempted
+because the server/instance is still unknown.
+
 ## CURRENT ACTIVE STAGE
 
-**Stage 0 — current system audit and baseline: BLOCKED.** Frontend and backend processes start, but the database-backed application is not verified and cannot receive PASS. No later stage has been started in this audit.
+**Stage 0B — SQL Server integration: BLOCKED at the connection gate.**
+The persistence layer is migrated and verified offline (tests, build, failure-path
+browser evidence). The remote SQL Server connection has not been attempted because
+the host/instance is still unknown — no connection details were guessed.
+**Stage 0 remains BLOCKED; Stage 1 has not been started.**
 
 ## NEXT STAGE
 
-Continue Stage 0: reconcile the backend with the project's actual Microsoft SQL Server database, establish the connection, stabilize the existing workflows, and verify persisted CRUD and stock transactions. Stage 1 remains gated until Stage 0 passes.
+Supply the SQL Server connection details (see BLOCKERS item 1), then run the
+connection, CRUD, purchase/sale, rollback and outage checks listed in the gate
+record above. Stage 1 stays gated until every box is checked.
 
 ## BLOCKERS
 
-1. **Database technology mismatch.** The user confirmed Microsoft SQL Server **on another computer**, supplied three scripts now preserved in `database/mssql/`, and identified **SQLEXPRESS / Windows Authentication**. The scripts define `pharmacy_management` and nine core tables. The runtime still uses `mysql2` and MySQL-specific queries. An earlier Windows-authenticated check to local `.\SQLEXPRESS` failed with **error 26**, consistent with the remote-host clarification. The remote hostname/IP and full SSMS Server name remain pending; the actual remote connection and live metadata have not been tested. See [SQL_SERVER_SCHEMA_REVIEW.md](SQL_SERVER_SCHEMA_REVIEW.md).
-2. **No live persistence baseline.** No backend `.env` or database environment variables were found. The current defaults fail with `ECONNREFUSED` on both localhost addresses at port 3306. All 20 database-backed GET probes returned HTTP 500. This does not establish that the user's SQL Server database is unavailable; it establishes that this checkout is not connected to it.
-3. **False success during outages.** The frontend seeds mock records and creates/updates localStorage records when APIs are unavailable. A browser customer creation and refresh reproduced this behavior. This is not database persistence and cannot satisfy any stage gate.
-4. **Existing baseline defects.** Invalid input types produce HTTP 500; numeric validation silently truncates quantities; detail pages report missing records during outages; health does not check database readiness. See the prioritized findings in [STAGE_0_AUDIT.md](STAGE_0_AUDIT.md).
+1. **SQL Server connection details are missing (the hard blocker).** The runtime is now SQL Server (`mssql` + `msnodesqlv8`, Windows Authentication) and the MySQL runtime dependency is gone, but no `.env` exists and the remote host has never been contacted. Required before any connection attempt: **(a)** host name or IP of the computer running SQL Server, **(b)** instance name (for example `SQLEXPRESS`) or confirmation of a default instance, **(c)** TCP + SQL Browser enabled for a named instance, **(d)** confirmation that the Windows account running Node also exists on the SQL Server machine with matching rights — Windows Authentication across two machines needs a domain account or matching local accounts. Do not guess the server name. See [SQL_SERVER_SCHEMA_REVIEW.md](SQL_SERVER_SCHEMA_REVIEW.md) and `database/mssql/inspect-connection.sql`.
+2. **No live persistence baseline.** No backend `.env` or database environment variables were found. Every database-backed request now fails explicitly with **HTTP 503 `Database unavailable: …`** (previously an ambiguous 500). This still establishes nothing about the user's remote database — only that this checkout is not connected to it.
+3. ~~False success during outages.~~ **RESOLVED in Stage 0B.** The frontend no longer seeds mock business records, no longer writes business data to localStorage, and never reports a local mutation as saved. Proven in the browser: error toast + unchanged localStorage + empty list (`docs/audits/stage-0b/db-failure-probes.txt`).
+4. **Remaining baseline defects** (scope unchanged, recorded as known future issues below): validator type weaknesses, today-summary double-count, no catch-all route, no sale/purchase idempotency, transient prescription→POS handoff, dead/duplicate front-end modules. Health now reports database readiness; invalid-type handling and route coverage are still open.
 
 ## LAST VERIFIED COMMIT
 
-Audited source baseline: **`9bdfd34b7a021b39ef60372a9817164a0b49d7b7`**, branch **`dev`**. It passed the existing unit suites and frontend production build; it **did not** pass the Stage 0 database/integration gate. No fully verified end-to-end commit exists in this audit. The audit documentation commit is recorded in Git history, not represented as a verified implementation.
+Stage 0B migration commit on branch `dev` (see `git log`). It passes **23/23 backend tests, 9/9 frontend tests and the production build**, and it produced the failure-path evidence recorded in `docs/audits/stage-0b/db-failure-probes.txt`. It does **not** pass the full Stage 0 database gate: no live SQL Server connection has been established, so CRUD / transaction / rollback evidence is outstanding. No fully verified end-to-end commit exists yet.
 
 ## Status definitions
 
@@ -48,6 +107,11 @@ Audited source baseline: **`9bdfd34b7a021b39ef60372a9817164a0b49d7b7`**, branch 
 An individual TESTED row is not a stage PASS. The supplied SQL Server scripts and the original MySQL schema share the nine core entities listed below; the live SQL Server database has not been inspected. Stages 1–8 below are an inventory of pre-existing code and missing work, not authorization to skip Stage 0.
 
 ## Stage 0 — baseline
+
+> **Snapshot taken before Stage 0B.** The rows below describe the MySQL-era
+> baseline and are kept as the historical starting point. Current values after
+> the SQL Server migration are in the **Stage 0B** section above; where a row
+> says BLOCKED for a database reason, re-read it there.
 
 | Requirement | Current State | Evidence | Missing Work | Testing Status | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -148,6 +212,30 @@ An individual TESTED row is not a stage PASS. The supplied SQL Server scripts an
 
 ## Gate record
 
-- **Stage 0:** BLOCKED; audit produced; existing implementation is not a reliable database-backed baseline.
+- **Stage 0B (current):** BLOCKED at the connection gate. Migration, tests, build,
+  failure-path behaviour and documentation are done; live SQL Server evidence
+  (connect / CRUD / transactions / rollback / outage recovery) is outstanding
+  because the remote host and instance are unknown.
+- **Stage 0 overall:** BLOCKED. Not PASS, not FAIL.
 - **Stages 1–8:** not entered. No stage progression or feature implementation was performed.
-- SQL Server DDL/relationships/triggers have now been supplied and reviewed. Remote SQLEXPRESS and Windows Authentication are confirmed. Next evidence required: the other computer's hostname/IP and full SSMS Server name, a usable development connection and matching live metadata, then persisted CRUD and purchase/prescription/sale regression checks.
+- SQL Server DDL/relationships/triggers have been supplied and reviewed. Remote
+  SQLEXPRESS and Windows Authentication are confirmed. Next evidence required:
+  the other computer's hostname/IP and the full SSMS Server name, a usable
+  development connection, matching live metadata, then the persisted CRUD and
+  purchase/prescription/sale regression checks.
+
+## Known future issues (recorded in Stage 0B, deliberately NOT implemented now)
+
+| # | Issue | Evidence | Assigned stage |
+| --- | --- | --- | --- |
+| 1 | Authentication absent — no accounts, login, sessions or password hashing | backend dependencies and routes | Stage 1 |
+| 2 | Route authorization absent — all 31 endpoints and all 18 routes are public; no `ProtectedRoute` | `backend/src/routes/`, `frontend/src/App.jsx` | Stage 1 |
+| 3 | Prescription → POS handoff is transient (route state only; no durable approval/order link; sale cannot reference the original prescription) | `prescriptionController.sendToBilling`, `POSPage.jsx` | Stage 5 / 6 |
+| 4 | Sale and purchase idempotency absent — a repeated submit creates a second transaction and a second stock change | `saleRepository`, `purchaseRepository`, POS/purchase submit buttons | Stage 4 / 6 |
+| 5 | `today-summary` revenue joins `sale_items`, multiplying a sale's revenue by its line count | `saleRepository.getTodaySummary` (comment in source) | Stage 6 |
+| 6 | No catch-all frontend route — an unknown URL renders a blank page | `frontend/src/App.jsx` route table | Stage 7 |
+| 7 | Validator weaknesses: `parseInt('2abc') → 2`, `parseInt('1.9') → 1`, `Infinity` accepted as a price; no length/range ceilings | `backend/src/validators/*` | Stage 1 (API validation hardening) |
+| 8 | Dead duplicate service files (`medicineService.js`, `salesService.js`, `customerService.js`, `supplierService.js`, `purchaseService.js`, `prescriptionService.js`) are imported nowhere | import graph; only `apiService.js` is used | Stage 7 |
+| 9 | Unused components/tests: `Header.jsx`, `Sidebar.jsx`, `mockDashboard.js`, and `frontend/src/test/*` (Vitest) which no runner executes | import graph; `frontend/package.json` scripts | Stage 7 |
+| 10 | Free-text medicine categories, no permanent product code distinct from batch; one batch/expiry per product | `medicines` schema | Stage 3 |
+| 11 | Frontend npm audit findings (4 packages) and backend audit findings (2 packages) still open | `audits/stage-0/*-npm-audit.json` | Stage 7 |

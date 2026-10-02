@@ -1,0 +1,95 @@
+Stage 0B evidence — database-unavailable behaviour and false-success removal
+Recorded 2026-10-02 (Asia/Colombo). Environment: Windows host DESKTOP-9VVH8AE,
+Node v24.14.1, backend on :5000 (no backend/.env → SQL Server not configured),
+frontend (Vite dev) on :3000.
+
+NOTE: this file records the failure-path evidence that does NOT require the
+remote SQL Server. Connection, CRUD, transaction and rollback evidence against
+the real database is still pending (see docs/SQLSERVER_MIGRATION.md §5).
+
+------------------------------------------------------------------------------
+1. BACKEND STARTUP (backend/src/server.js)
+------------------------------------------------------------------------------
+Pharmacy Management API running on port 5000
+Health endpoint: http://localhost:5000/api/health
+Database connection FAILED at startup.
+  Database unavailable: DB_SERVER is not set. Copy backend/.env.example to
+  backend/.env and set DB_SERVER (and DB_INSTANCE for a named instance such
+  as SQLEXPRESS).
+  Fix DB_SERVER / DB_INSTANCE / DB_DATABASE in backend/.env (see backend/.env.example).
+  No local or mock data will be substituted for database writes.
+
+------------------------------------------------------------------------------
+2. TRUTHFUL HEALTH (GET /api/health) — HTTP 200 liveness, database reported
+------------------------------------------------------------------------------
+{"success":true,"message":"Pharmacy Management API is running",
+ "timestamp":"2026-10-02T11:17:48.389Z","ready":false,
+ "database":{"status":"unreachable","driver":"msnodesqlv8","authentication":null,
+ "server":null,"name":null,"login":null,"base_tables":null,
+ "detail":"Database unavailable: DB_SERVER is not set. ..."}}
+
+------------------------------------------------------------------------------
+3. API PROBES
+------------------------------------------------------------------------------
+GET  /api/medicines                    -> 503  (was 500 before migration; now
+                                           an explicit "database unavailable")
+POST /api/medicines (valid body)        -> 503  {"success":false,"message":
+                                           "Database unavailable: DB_SERVER is not set..."}
+POST /api/medicines (empty body)        -> 400  {"success":false,"message":
+                                           "Medicine name is required; Expiry date is required"}
+POST /api/sales (valid body)            -> 503  Database unavailable
+GET  /api/nope                          -> 404  structured JSON (unchanged)
+
+Interpretation: validation still runs before the database; a *successful*
+database write can no longer be reported while the database is unreachable.
+
+------------------------------------------------------------------------------
+4. BROWSER — FALSE-SUCCESS REMOVAL (Add Medicine)
+------------------------------------------------------------------------------
+Pre-state:
+  localStorage keys      = ["pharmacy_activities","pharmacy_activity_next_id"]
+  (no pharmacy_medicines / _suppliers / _customers / _prescriptions / _sales keys)
+  Dashboard counters     = 0 Medicines, 0 Customers, 0 Suppliers, 0 Prescriptions
+  Connection banner      = visible (role="alert"): "Cannot reach the pharmacy
+                           server. Nothing is being saved ..."
+
+Action: filled the Add Medicine form (Stage0B Probe Medicine, 7 units,
+LKR 125.50, batch PROBE-2026-001, expiry 2027-06-30) and pressed Save Medicine.
+
+Result (backend up, database unavailable):
+  network   POST http://localhost:5000/api/medicines -> 503 (XHR)
+  toast     class  = "toast toast-error"
+            text   = "Database unavailable: DB_SERVER is not set. Copy
+                      backend/.env.example to backend/.env and set DB_SERVER ..."
+  url       stayed on /medicines/add   (no success navigation)
+  localStorage keys unchanged (no record, no generated id)
+  /medicines  -> "0 Total", empty state "No medicines found"
+
+Result (backend killed — true network outage):
+  network   POST http://localhost:5000/api/medicines -> FAILED net::ERR_CONNECTION_REFUSED
+  toast     class = "toast toast-error", text = "Network Error"
+  url       stayed on /medicines/add
+  localStorage keys unchanged
+
+Result (backend restarted, same page, press Save again):
+  network   POST http://localhost:5000/api/medicines -> 503 (live server)
+  backend log of the RESTARTED process records "POST /api/medicines"
+  toast     "Database unavailable: ..." (error)
+
+Interpretation:
+  * no fake medicine, no fake id, no "(offline)" success toast in any path;
+  * the frontend re-issues the API call after an outage instead of latching
+    into a permanent offline mode (recovery of the request path is proven;
+    full "connected again + data resync" proof still needs a working database).
+
+------------------------------------------------------------------------------
+5. WHAT REMAINS BLOCKED
+------------------------------------------------------------------------------
+Everything that requires the real remote SQL Server:
+  SELECT 1 AS connection_test        (backend connection + Windows Authentication)
+  database/table/trigger inspection  (live metadata)
+  CREATE/READ/UPDATE/RESTART of a Medicine record through the API
+  purchase X+Y, sale X-Y, rollback-on-insufficient-stock
+  concurrent oversell test (UPDLOCK + SERIALIZABLE)
+Required input: remote host name/IP, instance name, and confirmation that the
+Windows account running Node exists on the SQL Server machine.

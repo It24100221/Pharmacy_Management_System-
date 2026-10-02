@@ -40,11 +40,28 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+// Liveness stays 200, but the response now reports *truthful* database
+// readiness instead of claiming success while the database is unreachable.
+const { testConnection } = require('./config/database');
+
+app.get('/api/health', async (req, res) => {
+  const database = await testConnection();
+
   res.json({
     success: true,
     message: 'Pharmacy Management API is running',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    ready: database.ok === true,
+    database: {
+      status: database.ok ? 'connected' : 'unreachable',
+      driver: database.driver || 'msnodesqlv8',
+      authentication: database.auth || null,
+      server: database.server || null,
+      name: database.database || null,
+      login: database.login || null,
+      base_tables: database.base_tables ?? null,
+      detail: database.ok ? database.message : database.message
+    }
   });
 });
 
@@ -58,7 +75,13 @@ app.use((req, res, next) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
+  if (err.isOperational) {
+    // Expected, explained failures (validation, missing record, database
+    // unavailable) — one clear line instead of a stack trace.
+    console.error(`${res.statusCode || err.statusCode || 500} ${req.method} ${req.path} - ${err.message}`);
+  } else {
+    console.error('Server error:', err);
+  }
 
   // Default error
   let statusCode = err.statusCode || 500;

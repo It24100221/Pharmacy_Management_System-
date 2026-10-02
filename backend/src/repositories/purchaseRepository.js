@@ -1,9 +1,16 @@
 const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
 
+// Microsoft SQL Server implementation (Stage 0B).
+//
+// `createWithItems` runs inside a SERIALIZABLE transaction so the stock
+// increment cannot interleave with a concurrent sale's UPDLOCK read.
+
 class PurchaseRepository {
   // Get all purchases
   async findAll(filters = {}) {
+    // MySQL allowed bare p.* / s.* columns with `GROUP BY p.id`; SQL Server
+    // does not. The item count is therefore aggregated in a derived table.
     let query = `
       SELECT
         p.id,
@@ -15,10 +22,14 @@ class PurchaseRepository {
         p.updated_at,
         s.company_name AS supplier_name,
         s.phone AS supplier_phone,
-        COUNT(pi.id) AS item_count
+        COALESCE(pi.item_count, 0) AS item_count
       FROM purchases p
       LEFT JOIN suppliers s ON p.supplier_id = s.id
-      LEFT JOIN purchase_items pi ON p.id = pi.purchase_id
+      LEFT JOIN (
+        SELECT purchase_id, COUNT(*) AS item_count
+        FROM purchase_items
+        GROUP BY purchase_id
+      ) pi ON pi.purchase_id = p.id
       WHERE 1=1
     `;
 
@@ -42,17 +53,16 @@ class PurchaseRepository {
       params.push(filters.end_date);
     }
 
-    query += ` GROUP BY p.id`;
+    // Deterministic order (OFFSET/FETCH requires a stable ORDER BY).
     query += ` ORDER BY p.purchase_date DESC, p.id DESC`;
 
-    // Pagination
     const page = parseInt(filters.page) || 1;
     const limit = parseInt(filters.limit) || 50;
     const offset = (page - 1) * limit;
 
     if (filters.pagination !== false) {
-      query += ` LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
+      query += ` OFFSET ? ROWS FETCH NEXT ? ROWS ONLY`;
+      params.push(offset, limit);
     }
 
     const [rows] = await pool.execute(query, params);
@@ -114,7 +124,7 @@ class PurchaseRepository {
 
   // Create purchase with items (uses transaction)
   async createWithItems(purchaseData, items) {
-    const connection = await pool.getConnection();
+    const connection = await pool.getConnection({ serializable: true });
     let purchaseId;
 
     try {
@@ -123,6 +133,7 @@ class PurchaseRepository {
       // 1. Create purchase header
       const purchaseQuery = `
         INSERT INTO purchases (supplier_id, purchase_date, total_amount, notes)
+        OUTPUT INSERTED.id
         VALUES (?, ?, ?, ?)
       `;
 
@@ -135,7 +146,7 @@ class PurchaseRepository {
         purchaseData.notes || null
       ]);
 
-      purchaseId = purchaseResult.insertId;
+      purchaseId = purchaseResult[0].id;
 
       // 2. Create purchase items
       const itemQuery = `
@@ -156,7 +167,7 @@ class PurchaseRepository {
       // 3. Increase medicine stock for each item
       const stockUpdateQuery = `
         UPDATE medicines
-        SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP
+        SET quantity = quantity + ?, updated_at = SYSDATETIME()
         WHERE id = ?
       `;
 
@@ -167,7 +178,7 @@ class PurchaseRepository {
       // Commit transaction
       await connection.commit();
     } catch (error) {
-      // Rollback on error
+      // Rollback on error — the whole purchase disappears, no partial stock.
       await connection.rollback();
       throw error;
     } finally {
@@ -180,13 +191,10 @@ class PurchaseRepository {
 
   // Get total count
   async getCount(filters = {}) {
-    let query = `
-      SELECT COUNT(DISTINCT p.id) as total
+    let query = `SELECT COUNT(DISTINCT p.id) AS total
       FROM purchases p
       LEFT JOIN suppliers s ON p.supplier_id = s.id
-      WHERE 1=1
-    `;
-
+      WHERE 1=1`;
     const params = [];
 
     if (filters.search) {
@@ -220,8 +228,8 @@ class PurchaseRepository {
         s.company_name AS supplier_name
       FROM purchases p
       LEFT JOIN suppliers s ON p.supplier_id = s.id
-      ORDER BY p.purchase_date DESC
-      LIMIT ?
+      ORDER BY p.purchase_date DESC, p.id DESC
+      OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY
     `;
 
     const [rows] = await pool.execute(query, [limit]);

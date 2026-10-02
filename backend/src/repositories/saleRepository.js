@@ -1,6 +1,17 @@
 const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
 
+// Microsoft SQL Server implementation (Stage 0B).
+//
+// Concurrency: MySQL's `SELECT ... FOR UPDATE` does not exist in SQL Server.
+// The medicine row is read with `WITH (UPDLOCK, ROWLOCK)` inside a SERIALIZABLE
+// transaction instead. Update locks are held until COMMIT, so a second sale
+// cannot read the pre-decrement quantity and oversell the same stock. The
+// stock arithmetic itself is still done server-side
+// (`quantity = quantity - ?`), never from a value read in JavaScript.
+
+const TODAY = `CAST(GETDATE() AS DATE)`;
+
 class SaleRepository {
   // Get all sales
   async findAll(filters = {}) {
@@ -38,25 +49,25 @@ class SaleRepository {
 
     // Date range filter
     if (filters.start_date) {
-      query += ` AND DATE(s.sale_date) >= ?`;
+      query += ` AND CAST(s.sale_date AS DATE) >= ?`;
       params.push(filters.start_date);
     }
 
     if (filters.end_date) {
-      query += ` AND DATE(s.sale_date) <= ?`;
+      query += ` AND CAST(s.sale_date AS DATE) <= ?`;
       params.push(filters.end_date);
     }
 
+    // Deterministic order (OFFSET/FETCH requires a stable ORDER BY).
     query += ` ORDER BY s.sale_date DESC, s.id DESC`;
 
-    // Pagination
     const page = parseInt(filters.page) || 1;
     const limit = parseInt(filters.limit) || 50;
     const offset = (page - 1) * limit;
 
     if (filters.pagination !== false) {
-      query += ` LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
+      query += ` OFFSET ? ROWS FETCH NEXT ? ROWS ONLY`;
+      params.push(offset, limit);
     }
 
     const [rows] = await pool.execute(query, params);
@@ -121,7 +132,7 @@ class SaleRepository {
 
   // Create sale with items (uses transaction)
   async createWithItems(saleData, items) {
-    const connection = await pool.getConnection();
+    const connection = await pool.getConnection({ serializable: true });
     let saleId;
 
     try {
@@ -132,11 +143,13 @@ class SaleRepository {
       const validatedItems = [];
 
       for (const item of items) {
-        // Get current medicine stock
+        // Lock the medicine row for the duration of the transaction
+        // (SQL Server equivalent of MySQL `FOR UPDATE`).
         const [medicineRows] = await connection.execute(
           `SELECT id, name, quantity, unit_price,
-             CASE WHEN expiry_date < CURDATE() THEN 1 ELSE 0 END AS is_expired
-           FROM medicines WHERE id = ? FOR UPDATE`,
+             CASE WHEN expiry_date < ${TODAY} THEN 1 ELSE 0 END AS is_expired
+           FROM medicines WITH (UPDLOCK, ROWLOCK)
+           WHERE id = ?`,
           [item.medicine_id]
         );
 
@@ -163,7 +176,7 @@ class SaleRepository {
           throw new ApiError('Quantity must be greater than 0', 400);
         }
 
-        // Calculate line total
+        // Calculate line total from the locked database price.
         const unitPrice = Number(medicine.unit_price);
         const lineTotal = item.quantity * unitPrice;
 
@@ -188,7 +201,8 @@ class SaleRepository {
       // 2. Create sale header
       const saleQuery = `
         INSERT INTO sales (customer_id, sale_date, total_amount, discount, final_amount, payment_method, notes)
-        VALUES (?, NOW(), ?, ?, ?, ?, ?)
+        OUTPUT INSERTED.id
+        VALUES (?, SYSDATETIME(), ?, ?, ?, ?, ?)
       `;
 
       const [saleResult] = await connection.execute(saleQuery, [
@@ -200,7 +214,7 @@ class SaleRepository {
         saleData.notes || null
       ]);
 
-      saleId = saleResult.insertId;
+      saleId = saleResult[0].id;
 
       // 3. Create sale items and reduce stock
       const itemQuery = `
@@ -208,10 +222,10 @@ class SaleRepository {
         VALUES (?, ?, ?, ?, ?)
       `;
 
-      // Stock reduction query
+      // Stock reduction query (server-side arithmetic, no read-modify-write race)
       const stockReduceQuery = `
         UPDATE medicines
-        SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP
+        SET quantity = quantity - ?, updated_at = SYSDATETIME()
         WHERE id = ?
       `;
 
@@ -232,7 +246,7 @@ class SaleRepository {
       // Commit transaction
       await connection.commit();
     } catch (error) {
-      // Rollback on error
+      // Rollback on error — header, items and stock all revert together.
       await connection.rollback();
       throw error;
     } finally {
@@ -245,12 +259,10 @@ class SaleRepository {
 
   // Get total count
   async getCount(filters = {}) {
-    let query = `
-      SELECT COUNT(DISTINCT s.id) as total
+    let query = `SELECT COUNT(DISTINCT s.id) AS total
       FROM sales s
       LEFT JOIN customers c ON s.customer_id = c.id
-      WHERE 1=1
-    `;
+      WHERE 1=1`;
 
     const params = [];
 
@@ -265,12 +277,12 @@ class SaleRepository {
     }
 
     if (filters.start_date) {
-      query += ` AND DATE(s.sale_date) >= ?`;
+      query += ` AND CAST(s.sale_date AS DATE) >= ?`;
       params.push(filters.start_date);
     }
 
     if (filters.end_date) {
-      query += ` AND DATE(s.sale_date) <= ?`;
+      query += ` AND CAST(s.sale_date AS DATE) <= ?`;
       params.push(filters.end_date);
     }
 
@@ -289,15 +301,18 @@ class SaleRepository {
         CONCAT(c.first_name, ' ', c.last_name) AS customer_name
       FROM sales s
       LEFT JOIN customers c ON s.customer_id = c.id
-      ORDER BY s.sale_date DESC
-      LIMIT ?
+      ORDER BY s.sale_date DESC, s.id DESC
+      OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY
     `;
 
     const [rows] = await pool.execute(query, [limit]);
     return rows;
   }
 
-  // Get today's sales summary
+  // Get today's sales summary.
+  // NOTE (Stage 0 known issue, deliberately NOT changed in Stage 0B): summing
+  // s.final_amount across the sale_items join multiplies a sale's revenue by
+  // its line count. Tracked in docs/IMPLEMENTATION_STATUS.md for a later stage.
   async getTodaySummary() {
     const query = `
       SELECT
@@ -306,7 +321,8 @@ class SaleRepository {
         SUM(si.quantity) AS total_items_sold
       FROM sales s
       LEFT JOIN sale_items si ON s.id = si.sale_id
-      WHERE DATE(s.sale_date) = CURDATE()
+      WHERE s.sale_date >= ${TODAY}
+        AND s.sale_date < DATEADD(DAY, 1, ${TODAY})
     `;
 
     const [rows] = await pool.execute(query);

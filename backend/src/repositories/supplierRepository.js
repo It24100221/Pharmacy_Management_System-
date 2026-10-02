@@ -1,6 +1,8 @@
 const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
 
+// Microsoft SQL Server implementation (Stage 0B).
+
 class SupplierRepository {
   // Get all suppliers
   async findAll(filters = {}) {
@@ -27,16 +29,16 @@ class SupplierRepository {
       params.push(searchTerm, searchTerm, searchTerm);
     }
 
-    query += ` ORDER BY s.company_name ASC`;
+    // Deterministic order (OFFSET/FETCH requires a stable ORDER BY).
+    query += ` ORDER BY s.company_name ASC, s.id ASC`;
 
-    // Pagination
     const page = parseInt(filters.page) || 1;
     const limit = parseInt(filters.limit) || 50;
     const offset = (page - 1) * limit;
 
     if (filters.pagination !== false) {
-      query += ` LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
+      query += ` OFFSET ? ROWS FETCH NEXT ? ROWS ONLY`;
+      params.push(offset, limit);
     }
 
     const [rows] = await pool.execute(query, params);
@@ -68,7 +70,9 @@ class SupplierRepository {
     const query = `
       INSERT INTO suppliers (
         company_name, contact_person, email, phone, address
-      ) VALUES (?, ?, ?, ?, ?)
+      )
+      OUTPUT INSERTED.id
+      VALUES (?, ?, ?, ?, ?)
     `;
 
     const values = [
@@ -79,8 +83,8 @@ class SupplierRepository {
       supplierData.address || null
     ];
 
-    const [result] = await pool.execute(query, values);
-    return result.insertId;
+    const [rows] = await pool.execute(query, values);
+    return rows[0].id;
   }
 
   // Update supplier
@@ -106,7 +110,7 @@ class SupplierRepository {
 
   // Get total count
   async getCount(filters = {}) {
-    let query = `SELECT COUNT(*) as total FROM suppliers s WHERE 1=1`;
+    let query = `SELECT COUNT(*) AS total FROM suppliers s WHERE 1=1`;
     const params = [];
 
     if (filters.search) {

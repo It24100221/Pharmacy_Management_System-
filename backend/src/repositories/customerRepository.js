@@ -1,6 +1,8 @@
 const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
 
+// Microsoft SQL Server implementation (Stage 0B).
+
 class CustomerRepository {
   // Get all customers
   async findAll(filters = {}) {
@@ -33,16 +35,16 @@ class CustomerRepository {
       params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
-    query += ` ORDER BY c.last_name ASC, c.first_name ASC`;
+    // Deterministic order (OFFSET/FETCH requires a stable ORDER BY).
+    query += ` ORDER BY c.last_name ASC, c.first_name ASC, c.id ASC`;
 
-    // Pagination
     const page = parseInt(filters.page) || 1;
     const limit = parseInt(filters.limit) || 50;
     const offset = (page - 1) * limit;
 
     if (filters.pagination !== false) {
-      query += ` LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
+      query += ` OFFSET ? ROWS FETCH NEXT ? ROWS ONLY`;
+      params.push(offset, limit);
     }
 
     const [rows] = await pool.execute(query, params);
@@ -75,7 +77,9 @@ class CustomerRepository {
     const query = `
       INSERT INTO customers (
         first_name, last_name, email, phone, address, date_of_birth
-      ) VALUES (?, ?, ?, ?, ?, ?)
+      )
+      OUTPUT INSERTED.id
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
 
     const values = [
@@ -87,8 +91,8 @@ class CustomerRepository {
       customerData.date_of_birth || null
     ];
 
-    const [result] = await pool.execute(query, values);
-    return result.insertId;
+    const [rows] = await pool.execute(query, values);
+    return rows[0].id;
   }
 
   // Update customer
@@ -114,7 +118,7 @@ class CustomerRepository {
 
   // Get total count
   async getCount(filters = {}) {
-    let query = `SELECT COUNT(*) as total FROM customers c WHERE 1=1`;
+    let query = `SELECT COUNT(*) AS total FROM customers c WHERE 1=1`;
     const params = [];
 
     if (filters.search) {

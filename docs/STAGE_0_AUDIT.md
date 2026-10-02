@@ -232,3 +232,45 @@ COMMIT:
 
 NEXT STAGE:
 - Continue Stage 0 with the supplied SQL Server schema after server/auth connection details are supplied. Stage 1 is not started.
+
+---
+
+# Stage 0B addendum — 2026-10-02 (SQL Server migration + false-success removal)
+
+**Outcome: still BLOCKED** — but the two blockers that could be addressed from the
+repository alone have been closed. What remains is exclusively the missing remote
+connection details.
+
+## Closed since the audit above
+
+| Original finding | Status now |
+| --- | --- |
+| **B01** database is SQL Server, runtime is MySQL | **Closed.** `mysql2` removed. One runtime implementation: `mssql` + `msnodesqlv8` (Windows Authentication) behind `backend/src/config/database.js`. All six repositories translated (see `docs/SQLSERVER_MIGRATION.md`). |
+| **B03** mock/localStorage fallback reports success during failure | **Closed.** Business collections start empty and are API-only; every mutation persists or fails with `success:false` + error toast; no local id generation. Browser-verified: `docs/audits/stage-0b/db-failure-probes.txt`. |
+| **B02** every database GET returns an ambiguous 500 | **Changed.** Now an explicit `503 Database unavailable: …` carrying the reason. Still no connection (blocked). |
+| **B04** health succeeds while the database is down; startup never tests the connection | **Closed.** `/api/health` reports `database.status/ready/server/name/login/base_tables`; `server.js` probes at boot and logs a clear failure. |
+| **B07-adjacent** connection latch: one network error left the API permanently "unavailable" | **Closed.** The flag no longer gates requests; every call is attempted and the next success flips it back and re-syncs. |
+
+## Regression evidence
+
+- Backend `npm test`: **23/23 pass** (13 original tests, updated for SQL Server expectations, + 10 new migration tests that forbid MySQL syntax and assert `OUTPUT INSERTED.id`, `OFFSET/FETCH` ordering, `UPDLOCK/ROWLOCK`, SERIALIZABLE, `@pN` conversion and loud 503 failure).
+- Frontend `npm test`: **9/9 pass**. Production build: pass.
+- API probes: validation (400), 404 and health unchanged; DB paths now 503.
+- Browser: all 18 routes previously inventoried still render; the outage banner replaces silent mock data.
+
+## Still open (unchanged, requires the remote server)
+
+B02 live connection, real-schema verification, CRUD persistence, purchase/sale
+stock transactions, rollback, and concurrency behaviour. Findings B05, B06, B08,
+B09, B10, B11, B12, B14, B15, B16, B17, B18, B19, B20 are recorded as known
+future issues in `docs/IMPLEMENTATION_STATUS.md` with their stage assignment and
+were deliberately not fixed here. S01 (no authentication/authorization) is Stage 1.
+
+## Environment note discovered during Stage 0B
+
+Only the legacy ODBC driver `SQL Server` is registered on this machine
+(`reg query "HKLM\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers"`); neither
+`SQL Server Native Client 11.0` nor `ODBC Driver 17/18 for SQL Server` is
+installed. `DB_DRIVER` therefore defaults to `{SQL Server}` and is overridable in
+`backend/.env`. If date/`DATETIME2` round-tripping misbehaves once connected,
+installing a modern ODBC driver is the first thing to try.
