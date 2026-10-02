@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { medicineService, supplierService, customerService, purchaseService, prescriptionService, salesService } from '../services/apiService.js'
+import { useAuth } from './AuthContext.jsx'
 import {
   computeStockStatus,
   normalizeCustomer,
@@ -17,24 +18,6 @@ const AppContext = createContext(null)
 // excuse and never as a local success.
 const isUnreachable = (error) => !error?.response || error.response?.status === 503
 
-const loadState = (key, defaultValue) => {
-  try {
-    const saved = localStorage.getItem(key)
-    return saved ? JSON.parse(saved) : defaultValue
-  } catch {
-    return defaultValue
-  }
-}
-
-// Seed activity data
-const defaultActivity = [
-  { id: 1, type: 'sale', title: 'Sale completed — Receipt #SAL-1001', time: new Date(Date.now() - 3600000 * 2).toISOString(), icon: 'receipt' },
-  { id: 2, type: 'stock', title: 'Stock received for Amoxicillin 500mg', time: new Date(Date.now() - 3600000 * 5).toISOString(), icon: 'package' },
-  { id: 3, type: 'prescription', title: 'Prescription created for Kamal Perera', time: new Date(Date.now() - 3600000 * 8).toISOString(), icon: 'clipboard' },
-  { id: 4, type: 'medicine', title: 'Medicine details updated — Cetirizine 10mg', time: new Date(Date.now() - 86400000).toISOString(), icon: 'pencil' },
-  { id: 5, type: 'customer', title: 'New customer registered — Nimali Abeykoon', time: new Date(Date.now() - 86400000 * 2).toISOString(), icon: 'user' },
-]
-
 // Stage 0B: business collections start EMPTY and are filled from the API only.
 // They are never seeded from mock files and never restored from localStorage,
 // so an unreachable backend can never masquerade as persisted data.
@@ -45,16 +28,18 @@ const initialState = {
   customers: [],
   prescriptions: [],
   sales: [],
-  activities: loadState('pharmacy_activities', defaultActivity),
+  activities: [],
   toasts: [],
   loading: true,
   apiConnected: false,
 }
 
-let nextActivityId = loadState('pharmacy_activity_next_id', 6)
+let nextActivityId = 1
 
 function appReducer(state, action) {
   switch (action.type) {
+    case 'RESET_BUSINESS':
+      return { ...state, medicines: [], suppliers: [], customers: [], prescriptions: [], sales: [], activities: [], loading: false, apiConnected: false }
     // ============ INIT ============
     case 'SET_DATA':
       return { ...state, ...action.payload, loading: false }
@@ -144,23 +129,27 @@ function addActivity(activities, { type, title, icon }) {
 }
 
 export function AppProvider({ children }) {
+  const { user } = useAuth()
+  const activeRole = user?.role
   const [state, dispatch] = useReducer(appReducer, initialState)
   const apiAvailableRef = useRef(true)
 
-  // Persist the local activity feed only. Business records are never written
-  // to localStorage — persistence is exclusively the backend's job.
-  useEffect(() => { localStorage.setItem('pharmacy_activities', JSON.stringify(state.activities)) }, [state.activities])
-  useEffect(() => { localStorage.setItem('pharmacy_activity_next_id', JSON.stringify(nextActivityId)) }, [state.activities])
+  // Activity is session-local UI state and is cleared when identity changes.
+  // Neither account history nor business records are written to localStorage.
 
   // Fetch all data from API on mount
   const loadInitialData = useCallback(async () => {
+    if (!activeRole) {
+      dispatch({ type: 'RESET_BUSINESS' })
+      return
+    }
     try {
       const [medRes, supRes, custRes, prescRes, salesRes] = await Promise.allSettled([
-        medicineService.getAll({ pagination: 'false' }),
-        supplierService.getAll({ pagination: 'false' }),
-        customerService.getAll({ pagination: 'false' }),
-        prescriptionService.getAll({ pagination: 'false' }),
-        salesService.getAll({ pagination: 'false' }),
+        ['INVENTORY_STAFF', 'SALES_STAFF', 'PRESCRIPTION_STAFF', 'SUPPLIER'].includes(activeRole) ? medicineService.getAll({ pagination: 'false' }) : null,
+        ['INVENTORY_STAFF', 'SUPPLIER'].includes(activeRole) ? supplierService.getAll({ pagination: 'false' }) : null,
+        ['PRESCRIPTION_STAFF', 'SALES_STAFF'].includes(activeRole) ? customerService.getAll({ pagination: 'false' }) : null,
+        activeRole === 'PRESCRIPTION_STAFF' ? prescriptionService.getAll({ pagination: 'false' }) : null,
+        activeRole === 'SALES_STAFF' ? salesService.getAll({ pagination: 'false' }) : null,
       ])
 
       const loadData = {}
@@ -211,7 +200,7 @@ export function AppProvider({ children }) {
       dispatch({ type: 'SET_API_CONNECTED', payload: false })
       dispatch({ type: 'SET_DATA', payload: {} })
     }
-  }, [])
+  }, [activeRole])
 
   useEffect(() => {
     loadInitialData()

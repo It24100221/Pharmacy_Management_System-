@@ -139,6 +139,10 @@ export const prescriptionService = {
 // SALES SERVICE
 // ============================================================================
 export const salesService = {
+  getPrescriptionBilling: async (id) => {
+    const response = await api.get(`/sales/prescription/${id}/billing`)
+    return response.data
+  },
   getAll: async (params = {}) => {
     const response = await api.get('/sales', { params })
     return response.data

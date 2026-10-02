@@ -251,3 +251,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media print {
   .pharmacy-utility, .skip-link { display: none !important; }
 }
+.auth-page { min-height: 65vh; display: grid; place-items: center; padding: 48px 20px; background: var(--bg-secondary); }
+.auth-card { width: min(100%, 480px); padding: 36px; display: flex; flex-direction: column; gap: 12px; }
+.auth-card h1 { margin: 0; }
+.auth-card p { margin: 0 0 12px; color: var(--text-secondary); }
+.auth-card .btn { margin-top: 12px; text-align: center; }
+.auth-dashboard { padding-block: 50px; min-height: 50vh; }
+.auth-dashboard-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin-top: 24px; }
+.auth-dashboard-links a { padding: 24px; font-weight: 700; text-decoration: none; }
+.auth-state { padding: 48px; text-align: center; }

@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext.jsx'
 import { formatLKR } from '../../data/mockMedicines.js'
 import { Search, ShoppingCart, Trash2, Check } from '../../components/common/Icons.jsx'
 import { getSaleValidationError, isMedicineSellable } from '../../utils/sales.js'
+import { salesService } from '../../services/apiService.js'
 
 const POSPage = () => {
   const navigate = useNavigate()
@@ -15,6 +16,8 @@ const POSPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('Cash')
   const [notes, setNotes] = useState('')
   const [prescriptionInfo, setPrescriptionInfo] = useState(null)
+  const [billingId, setBillingId] = useState('')
+  const [billingBusy, setBillingBusy] = useState(false)
   const prescriptionHandoffHandled = useRef(false)
 
   useEffect(() => {
@@ -39,6 +42,27 @@ const POSPage = () => {
       m.name.toLowerCase().includes(q) || m.genericName?.toLowerCase().includes(q) || m.batchNumber?.toLowerCase().includes(q)
     ).filter(isMedicineSellable).slice(0, 8)
   }, [medicines, searchTerm])
+
+  const loadPrescription = async event => {
+    event.preventDefault()
+    const id = Number(billingId)
+    if (!Number.isSafeInteger(id) || id <= 0) { showToast('Enter a valid prescription ID', 'error'); return }
+    setBillingBusy(true)
+    try {
+      const response = await salesService.getPrescriptionBilling(id)
+      const data = response.data
+      if (!data.items.length) { showToast('No available prescription items can be billed', 'error'); return }
+      setCart(data.items.map(item => ({
+        medicineId: item.medicine_id, medicineName: item.medicine_name,
+        batchNumber: item.batch_number, quantity: item.requested_quantity,
+        unitPrice: Number(item.unit_price), lineTotal: Number(item.line_total),
+      })))
+      setPrescriptionInfo(data.customer)
+      showToast(data.unavailable_items.length ? 'Available items loaded; some prescription items need review' : 'Prescription items loaded', 'success')
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Could not load prescription', 'error')
+    } finally { setBillingBusy(false) }
+  }
 
   const addToCart = (medicine) => {
     const existing = cart.find(i => i.medicineId === medicine.id)
@@ -95,6 +119,11 @@ const POSPage = () => {
       </div>
 
       <div className="content-container" style={{ paddingTop: 'var(--space-5)' }}>
+        <form onSubmit={loadPrescription} className="card" style={{ display: 'flex', alignItems: 'end', gap: 12, padding: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+          <div><label className="form-label" htmlFor="billing-prescription-id">Prescription ID from Prescription Staff</label>
+            <input className="form-control" id="billing-prescription-id" inputMode="numeric" value={billingId} onChange={event => setBillingId(event.target.value)} placeholder="e.g. 123" /></div>
+          <button className="btn btn-primary" type="submit" disabled={billingBusy}>{billingBusy ? 'Loading…' : 'Load prescription'}</button>
+        </form>
         {prescriptionInfo && (
           <div className="alert alert-info" style={{ marginBottom: 'var(--space-4)' }}>
             <Check size={20} />

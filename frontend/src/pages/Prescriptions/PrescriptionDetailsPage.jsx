@@ -62,12 +62,7 @@ const PrescriptionDetailsPage = () => {
       showToast('No available prescription items can be sent to billing', 'error')
       return
     }
-    navigate('/sales', {
-      state: {
-        prescriptionItems: result.data.items,
-        prescriptionCustomer: result.data.customer,
-      },
-    })
+    showToast(`Prescription #${prescription.id} is ready. Give this ID to Sales Staff.`, 'success')
   }
 
   return (

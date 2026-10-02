@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { VITE_API_BASE_URL } from '../config/env.js'
+import { getToken } from '../utils/session.js'
 
 const api = axios.create({
   baseURL: VITE_API_BASE_URL,
@@ -12,6 +13,8 @@ const api = axios.create({
 // Request interceptor for logging
 api.interceptors.request.use(
   (config) => {
+    const token = getToken()
+    if (token) config.headers.Authorization = `Bearer ${token}`
     console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
     return config
   },

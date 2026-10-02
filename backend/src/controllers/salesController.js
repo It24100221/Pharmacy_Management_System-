@@ -3,8 +3,32 @@ const saleRepository = require('../repositories/saleRepository');
 const SalesValidator = require('../validators/salesValidator');
 const medicineRepository = require('../repositories/medicineRepository');
 const customerRepository = require('../repositories/customerRepository');
+const prescriptionRepository = require('../repositories/prescriptionRepository');
 
 class SalesController {
+  getPrescriptionForBilling = asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid prescription ID' });
+    }
+    const prescription = await prescriptionRepository.findById(id);
+    if (!prescription) return res.status(404).json({ success: false, message: 'Prescription not found' });
+    const availability = await prescriptionRepository.checkAvailability(id);
+    const items = availability.filter(item => item.availability_status === 'available').map(item => ({
+      medicine_id: item.medicine_id,
+      medicine_name: item.medicine_name,
+      batch_number: item.batch_number,
+      requested_quantity: item.requested_quantity,
+      unit_price: item.unit_price,
+      line_total: item.requested_quantity * item.unit_price
+    }));
+    res.json({ success: true, data: {
+      prescription_id: id,
+      customer: { id: prescription.customer_id, name: `${prescription.first_name} ${prescription.last_name}` },
+      items,
+      unavailable_items: availability.filter(item => item.availability_status !== 'available')
+    } });
+  });
   // GET /api/sales
   // GET /api/sales?search=...&start_date=...&end_date=...
   getAllSales = asyncHandler(async (req, res) => {

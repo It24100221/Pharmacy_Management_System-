@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const { requireAuth, requireRole } = require('../middleware/auth');
+router.use(requireAuth, requireRole('PRESCRIPTION_STAFF'));
 const prescriptionController = require('../controllers/prescriptionController');
 
 // Prescription routes

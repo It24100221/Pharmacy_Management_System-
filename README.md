@@ -9,9 +9,9 @@ A partially implemented web-based Pharmacy Management System built with React an
 
 **Final Implemented Database: Microsoft SQL Server** — administered with SSMS, Windows Authentication. The backend runs exclusively on `mssql` + `msnodesqlv8`; there is no dual MySQL/MSSQL runtime support. Database integration is not yet verified against a live instance.
 
-**Current status (2026-10-02): Stage 0 BLOCKED.** See [the implementation tracker](docs/IMPLEMENTATION_STATUS.md) and [the Stage 0 audit](docs/STAGE_0_AUDIT.md). The setup, schema, and feature checklists below describe the earlier MySQL-oriented implementation (Earlier Planned Database: MySQL); they are not evidence of a completed SQL Server-backed workflow. Do not apply the proposed MySQL scripts to the existing SQL Server database.
+**Current status (2026-10-02): Stage 0A and 0B PASS; Stage 0C live verification DEFERRED to each team member's SQL Server; Stage 1 authentication and authorization is active.** See [the implementation tracker](docs/IMPLEMENTATION_STATUS.md). The setup, schema, and feature checklists below describe the earlier MySQL-oriented implementation and are not evidence of a completed SQL Server-backed workflow. Do not apply the proposed MySQL scripts to the existing SQL Server database.
 
-The supplied SQL Server scripts are preserved in [database/mssql/](database/mssql/). The [schema review](docs/SQL_SERVER_SCHEMA_REVIEW.md) identifies the nine tables, trigger behavior, script differences and remaining connection requirements. Adding these reference files does not yet connect the current backend to SQL Server.
+The SQL Server scripts and Stage 1 migration are in [database/mssql/](database/mssql/). Each member applies them on their own SQL Server. The [team database guide](database/mssql/TEAM_DATABASE_UPDATE_GUIDE.md) gives execution order and verification queries.
 
 ## 📋 Project Overview
 

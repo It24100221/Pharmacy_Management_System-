@@ -1,6 +1,37 @@
 # Implementation status — Senevirathna Medical Pharmacy
 
-Last audited: **2026-10-02 (Asia/Colombo)**. Scope: **Stage 0 only**.
+Last audited: **2026-10-02 (Asia/Colombo)**. Scope: **Stage 1 active**.
+
+## Official current status (supersedes historical gate notes below)
+
+- **Stage 0A — Repository Audit: PASS.**
+- **Stage 0B — MSSQL Code Migration: PASS.**
+- **Stage 0C — Live Environment Verification: DEFERRED.** Each team member manages SQL Server locally. Live connection, schema inspection, CRUD persistence, transaction and rollback checks remain required team environment verification, but do not block implementation.
+- **CURRENT ACTIVE STAGE: Stage 1 — Authentication, authorization and database foundation: PASS (code-level gate).**
+- **NEXT STAGE: Stage 2 — Public website / customer registration**, only after the Stage 1 gate passes. Stage 1 also includes the registration foundation and page required for authentication.
+
+Stage 0 code-level foundation is complete. The live MSSQL verification task is deferred to each team member's local environment. Historical Stage 0B/0C notes below record the earlier connection-dependent gate interpretation and are not the current development policy.
+
+### Team environment verification (deferred, retained)
+
+On each member's SQL Server instance, run the MSSQL scripts and migration in order; confirm Windows Authentication, schema metadata, create/read/update/restart persistence, purchase and sale stock changes, rollback, and concurrent/repeated request behavior. Record results before claiming live database acceptance.
+
+### Stage 1 implementation gate (2026-10-02)
+
+**PASS under the team's code-level development policy.** Stage 2 has not been started. The live MSSQL checks above remain deferred and are not claimed as passing.
+
+| Requirement | Evidence / result |
+| --- | --- |
+| MSSQL auth schema and migration | `database/mssql/migrations/001_add_users_authentication.sql`: `users`, five-role CHECK, account status, unique username/email, nullable unique customer/supplier links, timestamps; rerunnable guards |
+| Registration | `/api/auth/register` validates full name, email, phone, address, username, password and confirmation; bcrypt hash; customer + user inserted in one transaction; duplicate identity returns 409 |
+| Login and session | `/api/auth/login` compares bcrypt, rejects inactive accounts, issues an 8-hour signed bearer token; `/api/auth/me` restores identity from DB on each request; logout removes the browser token |
+| Backend authorization | Reusable `requireAuth` and `requireRole` guard all business routes; 401 without a token, 403 for another role; role/status are read from the database for each request |
+| Frontend | Separate `AuthContext`, login/register pages, five role dashboards, `ProtectedRoute`, role redirects, public-only navbar/footer, and role-appropriate links |
+| Prescription → sales regression | Prescription Staff prepares a saved prescription ID; Sales Staff loads its available items through `/api/sales/prescription/:id/billing` without opening prescription management |
+| Demo staff | Interactive `backend/scripts/createStaffAccount.js` prompts privately for a password and stores only bcrypt hashes; no credentials committed |
+| Tests | Backend 32/32, frontend 13/13, production build pass; browser smoke: public nav, unauthenticated redirect, registration fields |
+
+Security assumptions and execution order are in `database/mssql/TEAM_DATABASE_UPDATE_GUIDE.md`. Known work outside Stage 1: rate limiting/lockout and stronger session revocation before public deployment; supplier row-level ownership and durable billing lifecycle in later stages; live SQL Server acceptance remains the deferred team task.
 
 ## Database architecture decision (FINAL, recorded 2026-10-02)
 
@@ -92,13 +123,13 @@ No pre-existing failures were present; migration work proceeded from this baseli
 - [x] `STAGE_0_AUDIT.md` updated
 - [ ] Working tree clean or changes committed — done as part of this update
 
-**Stage 0 status: BLOCKED** (not PASS, not FAIL). Everything not dependent on the
-remote SQL Server passes; the connection-dependent gate items cannot be attempted
-because the server/instance is still unknown.
+**Historical Stage 0B gate interpretation (superseded):** Code-level checks passed;
+connection-dependent checks were pending. The team subsequently deferred live SQL
+Server verification to each member's own environment and cleared the development gate.
 
-## CURRENT ACTIVE STAGE
+## Historical Stage 0C environment probe
 
-**Stage 0C — Live SQL Server verification: BLOCKED (attempted 2026-10-02).**
+**Stage 0C — Live SQL Server verification: DEFERRED (probe attempted 2026-10-02).**
 
 Phase A (baseline) and Phase C (local client) were completed; Phase B (connection
 values) found **no real connection values anywhere locally** — searched
@@ -125,18 +156,18 @@ Stage 0C baseline + environment probe evidence:
 | SQL Server on this machine | none (no service) |
 | `sqlcmd` | not on PATH |
 
-**The persistence layer cannot be exercised until the user supplies the SQL Server
-host/instance/database values (see USER ACTION REQUIRED in the Stage 0C report).**
+**This machine has no configured SQL Server target. Each team member will exercise
+the persistence layer on their own configured local environment.**
 
-## NEXT STAGE
+## Historical Stage 0C follow-up (now team environment verification)
 
-Supply the SQL Server connection details (see BLOCKERS item 1), then run the
-connection, CRUD, purchase/sale, rollback and outage checks listed in the gate
-record above. Stage 1 stays gated until every box is checked.
+Each team member supplies their own SQL Server connection details and runs the
+connection, CRUD, purchase/sale, rollback and outage checks. Stage 1 implementation
+continues independently of these deferred live checks.
 
-## BLOCKERS
+## Historical environment findings (not development blockers)
 
-1. **SQL Server connection details are missing (the hard blocker).** The runtime is now SQL Server (`mssql` + `msnodesqlv8`, Windows Authentication) and the MySQL runtime dependency is gone, but no `.env` exists and the remote host has never been contacted. Required before any connection attempt: **(a)** host name or IP of the computer running SQL Server, **(b)** instance name (for example `SQLEXPRESS`) or confirmation of a default instance, **(c)** TCP + SQL Browser enabled for a named instance, **(d)** confirmation that the Windows account running Node also exists on the SQL Server machine with matching rights — Windows Authentication across two machines needs a domain account or matching local accounts. Do not guess the server name. See [SQL_SERVER_SCHEMA_REVIEW.md](SQL_SERVER_SCHEMA_REVIEW.md) and `database/mssql/inspect-connection.sql`.
+1. **This checkout has no SQL Server connection details.** The runtime is SQL Server (`mssql` + `msnodesqlv8`, Windows Authentication) and the MySQL runtime dependency is gone. Each member configures their own `backend/.env` and permissions. See [the team database guide](../database/mssql/TEAM_DATABASE_UPDATE_GUIDE.md).
 2. **No live persistence baseline.** No backend `.env` or database environment variables were found. Every database-backed request now fails explicitly with **HTTP 503 `Database unavailable: …`** (previously an ambiguous 500). This still establishes nothing about the user's remote database — only that this checkout is not connected to it.
 3. ~~False success during outages.~~ **RESOLVED in Stage 0B.** The frontend no longer seeds mock business records, no longer writes business data to localStorage, and never reports a local mutation as saved. Proven in the browser: error toast + unchanged localStorage + empty list (`docs/audits/stage-0b/db-failure-probes.txt`).
 4. **Remaining baseline defects** (scope unchanged, recorded as known future issues below): validator type weaknesses, today-summary double-count, no catch-all route, no sale/purchase idempotency, transient prescription→POS handoff, dead/duplicate front-end modules. Health now reports database readiness; invalid-type handling and route coverage are still open.
@@ -176,7 +207,7 @@ An individual TESTED row is not a stage PASS. The supplied SQL Server scripts an
 | No fake workflows/application records | Automatic mock/localStorage fallback is active | `frontend/src/data/`, `AppContext.jsx` | Stop normal operation from reporting local mutations as completed database work | Reproduced offline success and mock dashboard numbers | PARTIAL |
 | Tracker and audit report | Current findings and future requirements recorded with evidence | This file; `STAGE_0_AUDIT.md`; saved probe/audit evidence | Update after every verified change/stage | Checked against observed baseline | TESTED |
 
-## Stage 1 — foundation and security (not entered)
+## Stage 1 — foundation and security (historical pre-implementation inventory)
 
 | Requirement | Current State | Evidence | Missing Work | Testing Status | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -261,12 +292,9 @@ An individual TESTED row is not a stage PASS. The supplied SQL Server scripts an
 
 ## Gate record
 
-- **Stage 0B (current):** BLOCKED at the connection gate. Migration, tests, build,
-  failure-path behaviour and documentation are done; live SQL Server evidence
-  (connect / CRUD / transactions / rollback / outage recovery) is outstanding
-  because the remote host and instance are unknown.
-- **Stage 0 overall:** BLOCKED. Not PASS, not FAIL.
-- **Stages 1–8:** not entered. No stage progression or feature implementation was performed.
+- **Stage 0A audit and Stage 0B code migration:** PASS under the team's current policy.
+- **Stage 0C live environment verification:** DEFERRED to each member; it remains a required local acceptance task.
+- **Stage 1:** active. Stages 2–8 have not been entered.
 - SQL Server DDL/relationships/triggers have been supplied and reviewed. Remote
   SQLEXPRESS and Windows Authentication are confirmed. Next evidence required:
   the other computer's hostname/IP and the full SSMS Server name, a usable

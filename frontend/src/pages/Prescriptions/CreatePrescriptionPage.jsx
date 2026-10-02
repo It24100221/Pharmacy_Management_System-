@@ -86,12 +86,8 @@ const CreatePrescriptionPage = () => {
       return
     }
 
-    navigate('/sales', {
-      state: {
-        prescriptionItems: billingResult.data.items,
-        prescriptionCustomer: billingResult.data.customer,
-      },
-    })
+    showToast(`Prescription #${result.data.id} is ready. Give this ID to Sales Staff.`, 'success')
+    navigate(`/prescriptions/${result.data.id}`, { state: { billingReady: true } })
   }
 
   const availableCount = items.filter(i => i.availability === 'available').length

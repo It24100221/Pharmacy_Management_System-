@@ -1,8 +1,14 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, ChevronRight } from '../common/Icons.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
+import { linksForUser } from '../../utils/navigation.js'
 
-const Footer = () => (
+const Footer = () => {
+  const { user } = useAuth()
+  const links = linksForUser(user)
+  const midpoint = Math.ceil(links.length / 2)
+  return (
   <footer className="site-footer">
     <div className="footer-inner">
       <div className="footer-grid">
@@ -14,15 +20,15 @@ const Footer = () => (
           <p className="footer-intro">Bringing people, medicines and everyday care together. Your community pharmacy, thoughtfully connected.</p>
         </div>
         <div>
-          <h3 className="footer-col-title">Pharmacy services</h3>
+          <h3 className="footer-col-title">Explore</h3>
           <ul className="footer-links">
-            {[['Medicine inventory', '/medicines'], ['Sales & billing', '/sales'], ['Prescriptions', '/prescriptions/create'], ['Customers', '/customers']].map(([label, to]) => <li key={to}><Link to={to}><ChevronRight size={12} />{label}</Link></li>)}
+            {links.slice(0, midpoint).map(([label, to]) => <li key={to}><Link to={to}><ChevronRight size={12} />{label}</Link></li>)}
           </ul>
         </div>
         <div>
           <h3 className="footer-col-title">Quick access</h3>
           <ul className="footer-links">
-            {[['Suppliers', '/suppliers'], ['Receive stock', '/purchases'], ['Low stock alerts', '/medicines/low-stock'], ['Expiry monitoring', '/medicines/expiry']].map(([label, to]) => <li key={to}><Link to={to}><ChevronRight size={12} />{label}</Link></li>)}
+            {links.slice(midpoint).map(([label, to]) => <li key={to}><Link to={to}><ChevronRight size={12} />{label}</Link></li>)}
           </ul>
         </div>
       </div>
@@ -32,6 +38,7 @@ const Footer = () => (
       </div>
     </div>
   </footer>
-)
+  )
+}
 
 export default Footer

@@ -66,7 +66,7 @@ const Dashboard = () => {
   return (
     <div className="pharmacy-home">
       <section className="pharmacy-hero" aria-label="Pharmacy highlights" aria-roledescription="carousel">
-        <img className="pharmacy-hero-photo" src="/images/pharmacy-hero.png" alt="" fetchPriority="high" width="1536" height="1024" />
+        <img className="pharmacy-hero-photo" src="/images/pharmacy-hero.png" alt="" fetchpriority="high" width="1536" height="1024" />
         <div className="pharmacy-container pharmacy-hero-inner">
           <div className="pharmacy-hero-copy" aria-live="polite" aria-atomic="true">
             <div className="pharmacy-eyebrow hero-kicker"><span /> YOUR COMMUNITY. YOUR PHARMACY.</div>

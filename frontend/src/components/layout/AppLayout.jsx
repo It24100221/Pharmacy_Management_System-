@@ -6,14 +6,17 @@ import MobileDrawer from './MobileDrawer.jsx'
 import Toast from '../common/Toast.jsx'
 import ScrollToTop from '../common/ScrollToTop.jsx'
 import { useApp } from '../../context/AppContext.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
 
 const AppLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { pathname, hash, key } = useLocation()
   const { apiConnected, loading } = useApp()
+  const { user } = useAuth()
 
   useEffect(() => {
-    if (!hash) window.scrollTo({ top: 0, behavior: 'instant' })
+    if (hash) requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView())
+    else window.scrollTo({ top: 0, behavior: 'instant' })
     setMobileOpen(false)
   }, [pathname, hash, key])
 
@@ -29,7 +32,7 @@ const AppLayout = () => {
       <TopNav onMobileOpen={() => setMobileOpen(true)} />
       <MobileDrawer isOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
 
-      {!loading && !apiConnected && (
+      {user && !loading && !apiConnected && (
         <div className="connection-banner" role="alert">
           Cannot reach the pharmacy server. Nothing is being saved — the app
           reconnects automatically as soon as the API responds again.

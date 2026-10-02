@@ -30,8 +30,10 @@ const supplierRoutes = require('./routes/supplierRoutes');
 const purchaseRoutes = require('./routes/purchaseRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 // Mount routes
+app.use('/api/auth', authRoutes);
 app.use('/api/medicines', medicineRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/suppliers', supplierRoutes);
@@ -78,7 +80,7 @@ app.use((err, req, res, next) => {
   if (err.isOperational) {
     // Expected, explained failures (validation, missing record, database
     // unavailable) — one clear line instead of a stack trace.
-    console.error(`${res.statusCode || err.statusCode || 500} ${req.method} ${req.path} - ${err.message}`);
+    console.error(`${err.statusCode || res.statusCode || 500} ${req.method} ${req.path} - ${err.message}`);
   } else {
     console.error('Server error:', err);
   }

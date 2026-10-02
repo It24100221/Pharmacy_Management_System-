@@ -1,5 +1,11 @@
 # Stage 0 audit — 2026-10-02
 
+> Historical baseline. The team's current decision supersedes the original
+> connection gate: Stage 0A audit and Stage 0B MSSQL code migration PASS;
+> Stage 0C live SQL Server checks are DEFERRED to each member's local instance
+> and do not block Stage 1. The MySQL runtime observations below describe the
+> pre-migration checkout. See `IMPLEMENTATION_STATUS.md` for current status.
+
 **Outcome: BLOCKED.** The application processes can start and unit tests/build pass, but there is no verified database connection or persisted workflow. The user confirmed that the intended database is **Microsoft SQL Server (SSMS)**; this repository is wired exclusively for **MySQL**. Stage 1 has not started.
 
 **Schema evidence received during the audit:** the user supplied SQL Server schema/seed scripts, preserved under `database/mssql/`. They confirm the name `pharmacy_management`, nine matching core tables and six timestamp-only update triggers. The user identified **SQLEXPRESS / Windows Authentication**, then confirmed **the database is on another computer**. The earlier local `.\SQLEXPRESS` read-only check failed with **error 26 (instance not found/accessible)**, consistent with that clarification; it does not test the actual remote server. The remote hostname/IP and full SSMS Server name remain pending. See [SQL_SERVER_SCHEMA_REVIEW.md](SQL_SERVER_SCHEMA_REVIEW.md). Original baseline observations below describe the code before these reference scripts were added; the application runtime has not been converted or verified.
@@ -240,8 +246,8 @@ NEXT STAGE:
 **Database architecture decision (FINAL):** *Earlier Planned Database: MySQL*
 (legacy reference code only, files retained until verification) · *Final
 Implemented Database: Microsoft SQL Server* (SSMS, Windows Authentication). The
-migration below implements this decision; Stage 1 stays gated until Stage 0
-persistence and regression checks pass.
+migration below implements this decision. The original live-connection gate is
+superseded by the team's deferred local verification policy stated above.
 
 **Outcome: still BLOCKED** — but the two blockers that could be addressed from the
 repository alone have been closed. What remains is exclusively the missing remote
