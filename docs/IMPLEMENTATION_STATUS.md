@@ -98,11 +98,35 @@ because the server/instance is still unknown.
 
 ## CURRENT ACTIVE STAGE
 
-**Stage 0B — SQL Server integration: BLOCKED at the connection gate.**
-The persistence layer is migrated and verified offline (tests, build, failure-path
-browser evidence). The remote SQL Server connection has not been attempted because
-the host/instance is still unknown — no connection details were guessed.
-**Stage 0 remains BLOCKED; Stage 1 has not been started.**
+**Stage 0C — Live SQL Server verification: BLOCKED (attempted 2026-10-02).**
+
+Phase A (baseline) and Phase C (local client) were completed; Phase B (connection
+values) found **no real connection values anywhere locally** — searched
+`backend/.env` (does not exist), `backend/.env.example` (placeholders only:
+`CHANGE_ME_HOSTNAME_OR_IP`), `README.md` (example format `HOST\SQLEXPRESS`),
+`docs/`, `database/`, and all config files. No SQL Server instance runs on this
+machine (no `MSSQLSERVER`, `MSSQL$SQLEXPRESS`, or `SqlBrowser` service). No
+values were invented; no `.env` was created.
+
+Stage 0C baseline + environment probe evidence:
+
+| Check | Result |
+| --- | --- |
+| Branch / starting commit | `dev` / `1cb835a` |
+| Working tree | clean (only untracked `.freebuff/`) |
+| Backend tests | **23/23 PASS** |
+| Frontend tests | **9/9 PASS** |
+| Frontend production build | **PASS** (2.89s) |
+| Node / npm / arch | v24.14.1 / 11.11.0 / x64 win32 |
+| Windows identity running Node | `DESKTOP-9VVH8AE\ASUS` (workgroup machine; `whoami` via cmd) |
+| ODBC drivers installed | legacy **`SQL Server`** only (matches `DB_DRIVER={SQL Server}` default); no Native Client, no ODBC 17/18 |
+| `mssql` / `msnodesqlv8` | 12.7.2 / 5.5.0 installed |
+| `mysql2` | absent (verified by require probe) |
+| SQL Server on this machine | none (no service) |
+| `sqlcmd` | not on PATH |
+
+**The persistence layer cannot be exercised until the user supplies the SQL Server
+host/instance/database values (see USER ACTION REQUIRED in the Stage 0C report).**
 
 ## NEXT STAGE
 

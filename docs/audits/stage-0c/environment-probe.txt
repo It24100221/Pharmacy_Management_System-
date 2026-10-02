@@ -1,0 +1,40 @@
+Stage 0C — Phase A/B/C probe evidence (2026-10-02)
+Sanitized: no connection strings or credentials included.
+
+PHASE A — BASELINE
+branch: dev
+starting commit: 1cb835a docs: record final database architecture decision (SQL Server)
+working tree: clean (only untracked .freebuff/)
+backend tests: 23/23 PASS
+frontend tests: 9/9 PASS
+frontend production build: PASS (2.89s)
+
+PHASE B — CONNECTION VALUE SEARCH (project files, node_modules excluded)
+backend/.env: DOES NOT EXIST
+backend/.env.example: placeholders only (DB_SERVER=CHANGE_ME_HOSTNAME_OR_IP)
+README.md: example format only (DB_SERVER=HOST\SQLEXPRESS, DB_DATABASE=pharmacy_management)
+real DB_SERVER / DB_INSTANCE / DB_DATABASE values found: NONE
+SQL Server services on this machine:
+  MSSQLSERVER    -> service does not exist
+  MSSQL$SQLEXPRESS -> service does not exist
+  SqlBrowser     -> service does not exist
+sqlcmd: not on PATH
+=> No SQL Server instance on the development machine; no remote target known.
+
+PHASE C — LOCAL CLIENT
+node: v24.14.1
+npm: 11.11.0
+arch: x64 win32
+windows identity (cmd: whoami): DESKTOP-9VVH8AE\ASUS
+ODBC drivers (HKLM\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers):
+  SQL Server                                  Installed   <- matches DB_DRIVER={SQL Server}
+  Microsoft Access Driver (*.mdb, *.accdb)    Installed
+  Microsoft Excel Driver (*.xls, ...)         Installed
+  Microsoft Access Text Driver                Installed
+  Microsoft Access dBASE Driver               Installed
+  (no SQL Server Native Client 11.0, no ODBC Driver 17/18 for SQL Server)
+mssql: 12.7.2 installed
+msnodesqlv8: 5.5.0 installed
+mysql2: absent
+
+PHASES D-W: NOT ATTEMPTED (blocked — no target server known; no values invented)
