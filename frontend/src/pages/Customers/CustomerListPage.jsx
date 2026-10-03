@@ -1,11 +1,16 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Plus, Pencil, Eye, Users } from '../../components/common/Icons.jsx'
+import { Search, Plus, Pencil, Eye, Trash2, Users } from '../../components/common/Icons.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 
 const CustomerListPage = () => {
-  const { customers } = useApp()
+  const { customers, deleteCustomer } = useApp()
   const [search, setSearch] = useState('')
+
+  const handleDelete = async (customer) => {
+    const confirmed = window.confirm(`Delete ${customer.first_name} ${customer.last_name}?`)
+    if (confirmed) await deleteCustomer(customer.id)
+  }
 
   const filtered = useMemo(() => {
     if (!search) return customers
@@ -56,6 +61,7 @@ const CustomerListPage = () => {
                       <div style={{ display: 'flex', gap: 'var(--space-1)', justifyContent: 'center' }}>
                         <Link to={`/customers/${customer.id}`} className="btn btn-ghost btn-sm" title="View Details"><Eye size={16} /></Link>
                         <Link to={`/customers/edit/${customer.id}`} className="btn btn-ghost btn-sm" title="Edit"><Pencil size={16} /></Link>
+                        <button type="button" className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDelete(customer)}><Trash2 size={16} /></button>
                       </div>
                     </td>
                   </tr>

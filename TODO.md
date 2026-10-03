@@ -14,8 +14,8 @@ This checklist tracks work against the UI/UX specification, image-reference guid
 - [x] Backend automated tests pass: 13/13.
 - [x] All backend JavaScript source files pass `node --check`.
 - [x] Browser smoke test passes for the changed medicine, prescription, POS, and receipt routes.
-- [ ] MySQL schema is confirmed against the approved ER diagram.
-- [ ] Full browser/API/MySQL Sprint 1 demonstration flow passes.
+- [ ] SQL Server schema is confirmed against the approved ER diagram.
+- [ ] Full browser/API/SQL Server Sprint 1 demonstration flow passes.
 
 ## Phase 1 - Integration Foundation
 
@@ -67,7 +67,7 @@ This checklist tracks work against the UI/UX specification, image-reference guid
 - [ ] Make schema and seed execution safely repeatable for development.
 - [x] Add backend automated tests for validation and transaction behavior.
 - [ ] Run the required 20 -> 120 -> 110 integrated stock demonstration.
-- [ ] Verify persistence after refresh and verify failure rollback behavior against MySQL.
+- [ ] Verify persistence after refresh and verify failure rollback behavior against SQL Server.
 
 ## Completed Work Log
 
@@ -80,4 +80,4 @@ This checklist tracks work against the UI/UX specification, image-reference guid
 ## Current Blockers and Required Inputs
 
 - Approved ER diagram: required before treating the proposed schema as final.
-- Running MySQL instance with project credentials: required for the live 20 -> 120 -> 110 stock demonstration and persistence/rollback verification.
+- Running SQL Server instance with project credentials: required for the live 20 -> 120 -> 110 stock demonstration and persistence/rollback verification.

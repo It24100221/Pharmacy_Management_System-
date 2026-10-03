@@ -58,6 +58,11 @@ export const supplierService = {
     const response = await api.put(`/suppliers/${id}`, data)
     return response.data
   },
+
+  remove: async (id) => {
+    const response = await api.delete(`/suppliers/${id}`)
+    return response.data
+  },
 }
 
 // ============================================================================
@@ -81,6 +86,11 @@ export const customerService = {
 
   update: async (id, data) => {
     const response = await api.put(`/customers/${id}`, data)
+    return response.data
+  },
+
+  remove: async (id) => {
+    const response = await api.delete(`/customers/${id}`)
     return response.data
   },
 }
@@ -109,6 +119,14 @@ export const purchaseService = {
 // PRESCRIPTION SERVICE
 // ============================================================================
 export const prescriptionService = {
+  uploadImage: async (image, metadata = {}) => {
+    const response = await api.post('/prescriptions/upload', { image, ...metadata })
+    return response.data
+  },
+  getCustomer: async (customerId) => {
+    const response = await api.get(`/prescriptions/customer/${customerId}`)
+    return response.data
+  },
   getAll: async (params = {}) => {
     const response = await api.get('/prescriptions', { params })
     return response.data
@@ -133,6 +151,10 @@ export const prescriptionService = {
     const response = await api.post(`/prescriptions/${id}/send-to-billing`, data)
     return response.data
   },
+}
+
+export const productService = {
+  getAll: async () => (await api.get('/products')).data,
 }
 
 // ============================================================================

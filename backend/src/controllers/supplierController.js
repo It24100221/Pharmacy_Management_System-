@@ -87,6 +87,25 @@ class SupplierController {
       data: supplier
     });
   });
+
+  // DELETE /api/suppliers/:id
+  deleteSupplier = asyncHandler(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+
+    if (Number.isNaN(id) || id <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid supplier ID'
+      });
+    }
+
+    await supplierRepository.remove(id);
+
+    res.json({
+      success: true,
+      message: 'Supplier deleted successfully'
+    });
+  });
 }
 
 module.exports = new SupplierController();

@@ -1,11 +1,16 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Plus, Pencil, Building2, Package, ArrowRight } from '../../components/common/Icons.jsx'
+import { Search, Plus, Pencil, Trash2, Building2, Package, ArrowRight } from '../../components/common/Icons.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 
 const SupplierListPage = () => {
-  const { suppliers } = useApp()
+  const { suppliers, deleteSupplier } = useApp()
   const [search, setSearch] = useState('')
+
+  const handleDelete = async (supplier) => {
+    const confirmed = window.confirm(`Delete ${supplier.company_name}?`)
+    if (confirmed) await deleteSupplier(supplier.id)
+  }
 
   const filtered = useMemo(() => {
     if (!search) return suppliers
@@ -69,6 +74,7 @@ const SupplierListPage = () => {
                     <td><small style={{ color: 'var(--text-muted)' }}>{supplier.address ? (supplier.address.length > 40 ? supplier.address.substring(0, 40) + '...' : supplier.address) : '-'}</small></td>
                     <td style={{ textAlign: 'center' }}>
                       <Link to={`/suppliers/edit/${supplier.id}`} className="btn btn-ghost btn-sm"><Pencil size={16} /> Edit</Link>
+                      <button type="button" className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDelete(supplier)}><Trash2 size={16} /></button>
                     </td>
                   </tr>
                 ))}

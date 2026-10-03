@@ -45,7 +45,12 @@ const mobileNavSections = [
   },
 ]
 
-const MobileDrawer = ({ isOpen, onClose }) => {
+const customerNavSections = [
+  { title: 'Explore', items: [{ label: 'Home', path: '/', icon: LayoutDashboard }, { label: 'About', path: '/#about', icon: Users }, { label: 'Services', path: '/#services', icon: ClipboardPlus }, { label: 'Pharmacy Items', path: '/pharmacy-items', icon: Pill }] },
+  { title: 'Account', items: [{ label: 'Login', path: '/login', icon: Users }, { label: 'Register', path: '/register', icon: Plus }] },
+]
+
+const MobileDrawer = ({ isOpen, onClose, publicOnly = false }) => {
   const location = useLocation()
   const drawerRef = useRef(null)
 
@@ -103,7 +108,7 @@ const MobileDrawer = ({ isOpen, onClose }) => {
         </div>
 
         <div className="mobile-drawer-nav">
-          {mobileNavSections.map((section) => (
+          {(publicOnly ? customerNavSections : mobileNavSections).map((section) => (
             <div key={section.title}>
               <div className="mobile-nav-section-title">{section.title}</div>
               {section.items.map((item) => (

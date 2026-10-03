@@ -87,6 +87,25 @@ class CustomerController {
       data: customer
     });
   });
+
+  // DELETE /api/customers/:id
+  deleteCustomer = asyncHandler(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+
+    if (Number.isNaN(id) || id <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid customer ID'
+      });
+    }
+
+    await customerRepository.remove(id);
+
+    res.json({
+      success: true,
+      message: 'Customer deleted successfully'
+    });
+  });
 }
 
 module.exports = new CustomerController();

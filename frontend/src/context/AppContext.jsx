@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { mockMedicines } from '../data/mockMedicines.js'
 import { mockSuppliers } from '../data/mockSuppliers.js'
-import { mockCustomers } from '../data/mockCustomers.js'
 import { mockPrescriptions } from '../data/mockPrescriptions.js'
 import { mockSales } from '../data/mockSales.js'
 import { medicineService, supplierService, customerService, purchaseService, prescriptionService, salesService } from '../services/apiService.js'
@@ -37,7 +36,7 @@ const defaultActivity = [
 const initialState = {
   medicines: loadState('pharmacy_medicines', mockMedicines).map(normalizeMedicine),
   suppliers: loadState('pharmacy_suppliers', mockSuppliers).map(normalizeSupplier),
-  customers: loadState('pharmacy_customers', mockCustomers).map(normalizeCustomer),
+  customers: [],
   prescriptions: loadState('pharmacy_prescriptions', mockPrescriptions).map(normalizePrescription),
   sales: loadState('pharmacy_sales', mockSales).map(normalizeSale),
   activities: loadState('pharmacy_activities', defaultActivity),
@@ -145,7 +144,7 @@ export function AppProvider({ children }) {
   // Persist to localStorage (for offline fallback)
   useEffect(() => { localStorage.setItem('pharmacy_medicines', JSON.stringify(state.medicines)) }, [state.medicines])
   useEffect(() => { localStorage.setItem('pharmacy_suppliers', JSON.stringify(state.suppliers)) }, [state.suppliers])
-  useEffect(() => { localStorage.setItem('pharmacy_customers', JSON.stringify(state.customers)) }, [state.customers])
+  useEffect(() => { localStorage.removeItem('pharmacy_customers') }, [])
   useEffect(() => { localStorage.setItem('pharmacy_prescriptions', JSON.stringify(state.prescriptions)) }, [state.prescriptions])
   useEffect(() => { localStorage.setItem('pharmacy_sales', JSON.stringify(state.sales)) }, [state.sales])
   useEffect(() => { localStorage.setItem('pharmacy_activities', JSON.stringify(state.activities)) }, [state.activities])
@@ -348,59 +347,91 @@ export function AppProvider({ children }) {
     }
   }
 
+  const deleteSupplier = async (id) => {
+    if (!apiAvailableRef.current) {
+      showToast('Cannot delete supplier while the database is unavailable', 'error')
+      return { success: false, error: 'Database unavailable' }
+    }
+
+    try {
+      const res = await supplierService.remove(id)
+      if (res.success) {
+        dispatch({ type: 'SET_SUPPLIERS', payload: state.suppliers.filter(supplier => supplier.id !== Number(id)) })
+        showToast('Supplier deleted successfully', 'success')
+        return { success: true }
+      }
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Failed to delete supplier', 'error')
+      return { success: false, error: error.message }
+    }
+
+    return { success: false, error: 'Supplier deletion failed' }
+  }
+
   // Customer actions
   const addCustomer = async (data) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await customerService.create(data)
-        if (res.success) {
-          dispatch({ type: 'ADD_CUSTOMER', payload: normalizeCustomer(res.data) })
-          showToast('Customer added successfully', 'success')
-          return { success: true }
-        }
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          const newId = Math.max(0, ...state.customers.map(c => c.id)) + 1
-          const customer = { ...data, id: newId, created_at: new Date().toISOString() }
-          dispatch({ type: 'ADD_CUSTOMER', payload: customer })
-          showToast('Customer added (offline)', 'success')
-          return { success: true, data: customer }
-        }
-        showToast(error.response?.data?.message || 'Failed to add customer', 'error')
-        return { success: false, error: error.message }
-      }
-    } else {
-      const newId = Math.max(0, ...state.customers.map(c => c.id)) + 1
-      dispatch({ type: 'ADD_CUSTOMER', payload: { ...data, id: newId, created_at: new Date().toISOString() } })
-      showToast('Customer added (offline)', 'success')
-      return { success: true }
+    if (!apiAvailableRef.current) {
+      showToast('Cannot add customer while the database is unavailable', 'error')
+      return { success: false, error: 'Database unavailable' }
     }
+
+    try {
+      const res = await customerService.create(data)
+      if (res.success) {
+        dispatch({ type: 'ADD_CUSTOMER', payload: normalizeCustomer(res.data) })
+        showToast('Customer added successfully', 'success')
+        return { success: true }
+      }
+    } catch (error) {
+      markApiUnavailable(error)
+      showToast(error.response?.data?.message || 'Failed to add customer', 'error')
+      return { success: false, error: error.message }
+    }
+
+    return { success: false, error: 'Customer creation failed' }
   }
 
   const updateCustomer = async (id, data) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await customerService.update(id, data)
-        if (res.success) {
-          dispatch({ type: 'UPDATE_CUSTOMER', payload: normalizeCustomer(res.data) })
-          showToast('Customer updated successfully', 'success')
-          return { success: true }
-        }
-      } catch (error) {
-        if (markApiUnavailable(error)) {
-          const customer = { id: Number(id), ...data }
-          dispatch({ type: 'UPDATE_CUSTOMER', payload: customer })
-          showToast('Customer updated (offline)', 'success')
-          return { success: true, data: customer }
-        }
-        showToast(error.response?.data?.message || 'Failed to update customer', 'error')
-        return { success: false, error: error.message }
-      }
-    } else {
-      dispatch({ type: 'UPDATE_CUSTOMER', payload: { id: Number(id), ...data } })
-      showToast('Customer updated (offline)', 'success')
-      return { success: true }
+    if (!apiAvailableRef.current) {
+      showToast('Cannot update customer while the database is unavailable', 'error')
+      return { success: false, error: 'Database unavailable' }
     }
+
+    try {
+      const res = await customerService.update(id, data)
+      if (res.success) {
+        dispatch({ type: 'UPDATE_CUSTOMER', payload: normalizeCustomer(res.data) })
+        showToast('Customer updated successfully', 'success')
+        return { success: true }
+      }
+    } catch (error) {
+      markApiUnavailable(error)
+      showToast(error.response?.data?.message || 'Failed to update customer', 'error')
+      return { success: false, error: error.message }
+    }
+
+    return { success: false, error: 'Customer update failed' }
+  }
+
+  const deleteCustomer = async (id) => {
+    if (!apiAvailableRef.current) {
+      showToast('Cannot delete customer while the database is unavailable', 'error')
+      return { success: false, error: 'Database unavailable' }
+    }
+
+    try {
+      const res = await customerService.remove(id)
+      if (res.success) {
+        dispatch({ type: 'SET_CUSTOMERS', payload: state.customers.filter(customer => customer.id !== Number(id)) })
+        showToast('Customer deleted successfully', 'success')
+        return { success: true }
+      }
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Failed to delete customer', 'error')
+      return { success: false, error: error.message }
+    }
+
+    return { success: false, error: 'Customer deletion failed' }
   }
 
   // Prescription actions
@@ -623,8 +654,10 @@ export function AppProvider({ children }) {
     updateMedicine,
     addSupplier,
     updateSupplier,
+    deleteSupplier,
     addCustomer,
     updateCustomer,
+    deleteCustomer,
     addPrescription,
     getPrescriptionById,
     preparePrescriptionForBilling,

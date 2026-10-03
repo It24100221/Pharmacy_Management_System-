@@ -112,6 +112,25 @@ class CustomerRepository {
     return this.findById(id);
   }
 
+  async remove(id) {
+    const existing = await this.findById(id);
+    if (!existing) {
+      throw new ApiError('Customer not found', 404);
+    }
+
+    try {
+      await pool.execute('DELETE FROM customers WHERE id = ?', [id]);
+      if (await this.findById(id)) {
+        throw new ApiError('Customer was not deleted', 409);
+      }
+    } catch (error) {
+      if (error.number === 547) {
+        throw new ApiError('Customer cannot be deleted because related prescriptions exist', 409);
+      }
+      throw error;
+    }
+  }
+
   // Get total count
   async getCount(filters = {}) {
     let query = `SELECT COUNT(*) as total FROM customers c WHERE 1=1`;

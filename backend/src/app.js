@@ -14,7 +14,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging (simple)
@@ -30,14 +30,19 @@ const supplierRoutes = require('./routes/supplierRoutes');
 const purchaseRoutes = require('./routes/purchaseRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
+const authRoutes = require('./routes/authRoutes');
+const { authenticateToken, authorizeRoles } = require('./middleware/auth');
+const productRoutes = require('./routes/productRoutes');
 
 // Mount routes
-app.use('/api/medicines', medicineRoutes);
-app.use('/api/sales', salesRoutes);
-app.use('/api/suppliers', supplierRoutes);
-app.use('/api/purchases', purchaseRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/medicines', authenticateToken, authorizeRoles('ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES'), medicineRoutes);
+app.use('/api/sales', authenticateToken, authorizeRoles('ADMIN', 'SALES', 'PHARMACIST'), salesRoutes);
+app.use('/api/suppliers', authenticateToken, authorizeRoles('ADMIN', 'SUPPLIER', 'INVENTORY'), supplierRoutes);
+app.use('/api/purchases', authenticateToken, authorizeRoles('ADMIN', 'SUPPLIER', 'INVENTORY'), purchaseRoutes);
 app.use('/api/customers', customerRoutes);
-app.use('/api/prescriptions', prescriptionRoutes);
+app.use('/api/prescriptions', authenticateToken, authorizeRoles('CUSTOMER', 'ADMIN', 'PHARMACIST'), prescriptionRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

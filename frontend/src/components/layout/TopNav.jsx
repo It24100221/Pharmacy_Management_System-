@@ -100,6 +100,8 @@ const TopNav = ({ onMobileOpen }) => {
           >
             Home
           </Link>
+          <a href="/#about" className="nav-link-item">About</a>
+          <Link to="/pharmacy-items" className={`nav-link-item ${isItemActive('/pharmacy-items') ? 'active' : ''}`}>Pharmacy Items</Link>
 
           {navModules.map((mod) => {
             if (mod.children) {
@@ -148,6 +150,10 @@ const TopNav = ({ onMobileOpen }) => {
           })}
         </div>
 
+        <div className="nav-auth-actions">
+          <Link to="/customer-login" className="nav-login-button">Login</Link>
+          <Link to="/customer-register" className="nav-register-button">Register</Link>
+        </div>
         <Link to="/sales" className="nav-sale-button">New Sale <ArrowRight size={16} /></Link>
         <button type="button" className="mobile-nav-toggle" onClick={onMobileOpen} aria-label="Open navigation" aria-haspopup="dialog">
           <Menu size={22} />

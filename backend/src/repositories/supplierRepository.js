@@ -104,6 +104,25 @@ class SupplierRepository {
     return this.findById(id);
   }
 
+  async remove(id) {
+    const existing = await this.findById(id);
+    if (!existing) {
+      throw new ApiError('Supplier not found', 404);
+    }
+
+    try {
+      await pool.execute('DELETE FROM suppliers WHERE id = ?', [id]);
+      if (await this.findById(id)) {
+        throw new ApiError('Supplier was not deleted', 409);
+      }
+    } catch (error) {
+      if (error.number === 547) {
+        throw new ApiError('Supplier cannot be deleted because related purchases exist', 409);
+      }
+      throw error;
+    }
+  }
+
   // Get total count
   async getCount(filters = {}) {
     let query = `SELECT COUNT(*) as total FROM suppliers s WHERE 1=1`;

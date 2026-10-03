@@ -4,6 +4,8 @@ const prescriptionController = require('../controllers/prescriptionController');
 
 // Prescription routes
 router.get('/', prescriptionController.getAllPrescriptions);
+router.post('/upload', prescriptionController.uploadPrescription);
+router.get('/customer/:id', prescriptionController.getCustomerUploads);
 router.get('/recent', prescriptionController.getRecentPrescriptions);
 router.get('/:id', prescriptionController.getPrescriptionById);
 router.get('/:id/availability', prescriptionController.checkAvailability);

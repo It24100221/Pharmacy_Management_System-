@@ -42,7 +42,9 @@ class PurchaseRepository {
       params.push(filters.end_date);
     }
 
-    query += ` GROUP BY p.id`;
+    query += ` GROUP BY
+      p.id, p.supplier_id, p.purchase_date, p.total_amount, p.notes,
+      p.created_at, p.updated_at, s.company_name, s.phone`;
     query += ` ORDER BY p.purchase_date DESC, p.id DESC`;
 
     // Pagination

@@ -3,7 +3,7 @@
 **Senevirathna Medical Pharmacy**
 **Project ID: ISE_WE_0101_19**
 
-A complete, integrated web-based Pharmacy Management System built with React (frontend) and Node.js/Express (backend) with MySQL database.
+A complete, integrated web-based Pharmacy Management System built with React (frontend) and Node.js/Express (backend) with Microsoft SQL Server.
 
 ## 📋 Project Overview
 
@@ -27,12 +27,12 @@ This system manages all aspects of pharmacy operations including:
 - Node.js
 - Express.js
 - JavaScript
-- mysql2/promise (MySQL connectivity)
+- mssql (Microsoft SQL Server connectivity)
 - dotenv (environment configuration)
 - CORS
 
 ### Database
-- MySQL with InnoDB engine
+- Microsoft SQL Server
 
 ## 📁 Project Structure
 
@@ -149,7 +149,7 @@ pharmacy-management-system/
 
 ### Prerequisites
 - Node.js (v16 or later)
-- MySQL (v8.0 or later)
+- Microsoft SQL Server (2019 or later)
 - npm or yarn
 
 ### 1. Clone and Setup
@@ -160,22 +160,16 @@ git clone <repository-url>
 cd pharmacy-management-system
 ```
 
-### 2. Database Setup
+### 2. Database Setup (SSMS)
 
-```bash
-# Create MySQL database
-mysql -u root -p
+Open SQL Server Management Studio and connect to your SQL Server instance. Open and execute these files in order:
 
-# In MySQL:
-CREATE DATABASE pharmacy_management;
-EXIT;
-
-# Import schema
-mysql -u root -p pharmacy_management < database/schema.sql
-
-# Import seed data
-mysql -u root -p pharmacy_management < database/seed.sql
+```text
+database/schema.sql
+database/seed.sql
 ```
+
+The schema script creates the `pharmacy_management` database, tables, foreign keys, indexes, and update triggers. The seed script inserts starter suppliers, medicines, and customers.
 
 ### 3. Backend Setup
 
@@ -185,16 +179,17 @@ cd backend
 # Install dependencies
 npm install
 
-# Create environment file
-cp .env.example .env
+# Create `backend/.env` from `.env.example`
 
 # Edit .env with your database credentials
 # PORT=5000
 # DB_HOST=localhost
-# DB_PORT=3306
-# DB_USER=root
-# DB_PASSWORD=your_password
+# DB_PORT=1433
+# DB_USER=sa
+# DB_PASSWORD=your_sql_server_password
 # DB_NAME=pharmacy_management
+# DB_ENCRYPT=false
+# DB_TRUST_SERVER_CERTIFICATE=true
 
 # Start the server
 npm start
@@ -227,6 +222,14 @@ npm run build
 ```
 
 The frontend will start on `http://localhost:3000`
+
+### Authentication and customer flow
+
+The public navbar provides `About`, `Pharmacy Items`, `Login`, and `Register` links. Customer routes are `/customer-register`, `/customer-login`, `/customer/dashboard`, and `/customer/checkout`. Staff access begins at `/staff-login` and redirects to `/admin-dashboard`, `/pharmacist-dashboard`, `/inventory-dashboard`, `/sales-dashboard`, or `/supplier-dashboard` according to the stored role.
+
+Set `JWT_SECRET` in `backend/.env`. Run `database/staff_default_users.sql` after the base schema to add or repair the default accounts. The development credentials are `admin/admin123`, `pharmacist/pharma123`, `inventory/inventory123`, `sales/sales123`, and `supplier/supplier123`; change or remove them before production use. Passwords in the database are bcrypt hashes.
+
+For the current SQL Server connection, open SQL Server Management Studio, select the `pharmacy_management` database, and execute `database/staff_default_users.sql`. For a MySQL deployment, translate the `IDENTITY`, `NVARCHAR`, `GO`, and `TOP` syntax to the MySQL adapter before running it; the current backend connection is `mssql`.
 
 ### 5. Access the Application
 
@@ -388,7 +391,7 @@ The database includes the following tables:
 ## 🔒 Security & Validation
 
 - All inputs are validated on both frontend and backend
-- MySQL transactions ensure data integrity
+- SQL Server transactions ensure data integrity
 - Stock levels are checked before sales
 - Insufficient stock prevents sale completion
 - Proper error messages are displayed
@@ -399,7 +402,7 @@ The database includes the following tables:
 ```env
 PORT=5000
 DB_HOST=localhost
-DB_PORT=3306
+DB_PORT=1433
 DB_USER=root
 DB_PASSWORD=
 DB_NAME=pharmacy_management

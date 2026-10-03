@@ -1,74 +1,59 @@
--- ============================================================================
--- SEED DATA
--- Pharmacy Management System
---
--- This seed data is REQUIRED for Sprint 1 testing:
--- - Normal stock medicine
--- - Low-stock medicine
--- - Near-expiry medicine
--- - Expired medicine
--- - Supplier
--- - Customer
--- ============================================================================
-
 USE pharmacy_management;
+GO
 
--- ============================================================================
--- Suppliers (required for purchases)
--- ============================================================================
-INSERT INTO suppliers (company_name, contact_person, email, phone, address) VALUES
-('MedPharm Distributors', 'John Smith', 'sales@medpharm.com', '+94 77 123 4567', '123 Healthcare Street, Colombo 05'),
-('HealthCare Supplies Ltd', 'Sarah Johnson', 'orders@healthcare.com', '+94 71 987 6543', '45 Medical Avenue, Kandy'),
-('PharmaSource International', 'Michael Brown', 'info@pharmasource.com', '+94 76 555 1234', '78 Commerce Road, Galle'),
-('Local Medical Imports', 'Priya Silva', 'contact@localmed.com', '+94 77 888 9999', '22 Pharmacy Lane, Jaffna'),
-('Generic Pharma Co', 'David Wilson', 'support@genericpharma.com', '+94 71 222 3333', '55 Bulk Order Street, Batticaloa');
+IF NOT EXISTS (SELECT 1 FROM suppliers)
+BEGIN
+    INSERT INTO suppliers (company_name, contact_person, email, phone, address) VALUES
+    (N'MedPharm Distributors', N'John Smith', N'sales@medpharm.com', N'+94 77 123 4567', N'123 Healthcare Street, Colombo 05'),
+    (N'HealthCare Supplies Ltd', N'Sarah Johnson', N'orders@healthcare.com', N'+94 71 987 6543', N'45 Medical Avenue, Kandy'),
+    (N'PharmaSource International', N'Michael Brown', N'info@pharmasource.com', N'+94 76 555 1234', N'78 Commerce Road, Galle');
+END;
+GO
 
--- ============================================================================
--- Medicines
--- ============================================================================
+IF NOT EXISTS (SELECT 1 FROM users)
+BEGIN
+    INSERT INTO users (username, password, role) VALUES
+    (N'admin', N'$2a$12$ddm8RHU613WAwzhUwRSf6Oo.Tjf7iAoNhSBiqTbCIGpVzsn/hFEAC', N'ADMIN'),
+    (N'pharmacist', N'$2a$12$H6KcerPt46iKr/ZPpKQKKOH74Wg0UhdUN9v9oFFWPGVNedyptfQgu', N'PHARMACIST'),
+    (N'inventory', N'$2a$12$E9CLQ67F6SH4t9m.wNWGy.sfil57HgjzlVX8ub0ZC.3OI7BWKl1WW', N'INVENTORY'),
+    (N'sales', N'$2a$12$Q9GTxb14dD.ANc.9GUvope/2aoAu.71WxUhQ2sbACL8vIVueQ2YS6', N'SALES'),
+    (N'supplier', N'$2a$12$ywEnQuFUZd8XI4s3FalimulvwaiZwe.tx2eEa.Tmd07dytyE2Vn0u', N'SUPPLIER');
+END;
+GO
 
--- Normal stock medicine (healthy quantity, not expiring soon)
-INSERT INTO medicines (name, description, generic_name, manufacturer, category, batch_number, quantity, unit_price, expiry_date, min_stock_level) VALUES
-('Amoxicillin 500mg Capsules (100pcs)', 'Broad-spectrum antibiotic', 'Amoxicillin', 'SmithKline Beecham', 'Antibiotics', 'AMX-2024-001', 150, 2500.00, '2026-12-31', 20),
-('Paracetamol 500mg Tablets (100pcs)', 'Pain reliever and fever reducer', 'Paracetamol', 'Cipla Ltd', 'Analgesics', 'PCM-2024-002', 200, 850.00, '2026-08-15', 30),
-('Omeprazole 20mg Capsules (30pcs)', 'Proton pump inhibitor for acid reflux', 'Omeprazole', 'AstraZeneca', 'Gastrointestinal', 'OME-2024-003', 85, 1200.00, '2026-06-30', 15),
-('Metformin 500mg Tablets (100pcs)', 'Type 2 diabetes medication', 'Metformin HCl', 'Merck', 'Diabetes', 'MET-2024-004', 120, 1800.00, '2026-09-30', 25),
-('Cetirizine 10mg Tablets (30pcs)', 'Antihistamine for allergies', 'Cetirizine HCl', 'UCB Pharma', 'Antihistamines', 'CTZ-2024-005', 60, 650.00, '2026-04-20', 10);
+IF NOT EXISTS (SELECT 1 FROM staff)
+BEGIN
+    INSERT INTO staff (user_id, staff_name, staff_role, email, phone)
+    SELECT user_id, CASE username
+        WHEN N'admin' THEN N'Pharmacy Administrator'
+        WHEN N'pharmacist' THEN N'Lead Pharmacist'
+        WHEN N'inventory' THEN N'Inventory Coordinator'
+        WHEN N'sales' THEN N'Sales Coordinator'
+        WHEN N'supplier' THEN N'Supplier Coordinator'
+    END, role, CASE username WHEN N'supplier' THEN N'Supply@gmail.com' ELSE CONCAT(username, N'@senevirathna.local') END, NULL
+    FROM users
+    WHERE role <> N'CUSTOMER';
+END;
+GO
 
--- Low stock medicines (below min_stock_level)
-INSERT INTO medicines (name, description, generic_name, manufacturer, category, batch_number, quantity, unit_price, expiry_date, min_stock_level) VALUES
-('Azithromycin 250mg Tablets (6pcs)', 'Macrolide antibiotic', 'Azithromycin', 'Pfizer', 'Antibiotics', 'AZI-2024-006', 5, 3200.00, '2026-11-15', 10),
-('Atorvastatin 20mg Tablets (30pcs)', 'Cholesterol-lowering statin', 'Atorvastatin Calcium', 'Lipitor Pfizer', 'Cardiovascular', 'ATOR-2024-007', 8, 2100.00, '2026-07-20', 15);
+IF NOT EXISTS (SELECT 1 FROM medicines)
+BEGIN
+    INSERT INTO medicines (name, description, generic_name, manufacturer, category, batch_number, quantity, unit_price, expiry_date, min_stock_level) VALUES
+    (N'Amoxicillin 500mg Capsules (100pcs)', N'Broad-spectrum antibiotic', N'Amoxicillin', N'SmithKline Beecham', N'Antibiotics', N'AMX-001', 150, 2500.00, DATEADD(day, 365, CAST(GETDATE() AS date)), 20),
+    (N'Paracetamol 500mg Tablets (100pcs)', N'Pain reliever and fever reducer', N'Paracetamol', N'Cipla Ltd', N'Analgesics', N'PCM-002', 200, 850.00, DATEADD(day, 240, CAST(GETDATE() AS date)), 30),
+    (N'Omeprazole 20mg Capsules (30pcs)', N'Proton pump inhibitor', N'Omeprazole', N'AstraZeneca', N'Gastrointestinal', N'OME-003', 85, 1200.00, DATEADD(day, 180, CAST(GETDATE() AS date)), 15),
+    (N'Azithromycin 250mg Tablets (6pcs)', N'Macrolide antibiotic', N'Azithromycin', N'Pfizer', N'Antibiotics', N'AZI-004', 5, 3200.00, DATEADD(day, 200, CAST(GETDATE() AS date)), 10),
+    (N'Atorvastatin 20mg Tablets (30pcs)', N'Cholesterol-lowering statin', N'Atorvastatin Calcium', N'Pfizer', N'Cardiovascular', N'ATOR-005', 8, 2100.00, DATEADD(day, 160, CAST(GETDATE() AS date)), 15),
+    (N'Ibuprofen 400mg Tablets (50pcs)', N'NSAID pain reliever', N'Ibuprofen', N'Boots Pharmaceuticals', N'Analgesics', N'IBU-006', 45, 950.00, DATEADD(day, 20, CAST(GETDATE() AS date)), 20),
+    (N'Cough Syrup - Honey Lemon (100ml)', N'Cough suppressant syrup', N'Dextromethorphan', N'Bristol Myers', N'Respiratory', N'COUGH-007', 25, 750.00, DATEADD(day, -60, CAST(GETDATE() AS date)), 10);
+END;
+GO
 
--- Near-expiry medicine (expires within 30-60 days)
-INSERT INTO medicines (name, description, generic_name, manufacturer, category, batch_number, quantity, unit_price, expiry_date, min_stock_level) VALUES
-('Ibuprofen 400mg Tablets (50pcs)', 'NSAID pain reliever', 'Ibuprofen', 'Boots Pharmaceuticals', 'Analgesics', 'IBU-2024-008', 45, 950.00, '2026-05-15', 20);
-
--- Expired medicine (for testing expired filter)
-INSERT INTO medicines (name, description, generic_name, manufacturer, category, batch_number, quantity, unit_price, expiry_date, min_stock_level) VALUES
-('Cough Syrup - Honey Lemon (100ml)', 'Cough suppressant syrup', 'Dextromethorphan', 'Bristol Myers', 'Respiratory', 'COUGHY-2023-009', 25, 750.00, '2025-01-10', 10);
-
--- Additional medicines for testing
-INSERT INTO medicines (name, description, generic_name, manufacturer, category, batch_number, quantity, unit_price, expiry_date, min_stock_level) VALUES
-('Loratadine 10mg Tablets (30pcs)', 'Non-drowsy antihistamine', 'Loratadine', 'Clarityne', 'Antihistamines', 'LRT-2024-010', 90, 890.00, '2026-10-01', 15),
-('Losartan 50mg Tablets (30pcs)', 'ARB blood pressure medication', 'Losartan Potassium', 'Merck', 'Cardiovascular', 'LOS-2024-011', 75, 1450.00, '2026-03-25', 20),
-('Salbutamol Inhaler (100mcg)', 'Bronchodilator for asthma', 'Salbutamol', 'GlaxoSmithKline', 'Respiratory', 'SAL-2024-012', 30, 3500.00, '2026-08-01', 5),
-('Metformin 1000mg Tablets (60pcs)', 'Extended release diabetes medication', 'Metformin HCl ER', 'Santofi', 'Diabetes', 'MET1000-2024-013', 40, 2200.00, '2026-12-01', 10),
-('Vitamin C 1000mg Tablets (60pcs)', 'Vitamin supplement', 'Ascorbic Acid', 'Nature Made', 'Supplements', 'VITC-2024-014', 180, 550.00, '2027-01-15', 25);
-
--- ============================================================================
--- Customers (required for prescriptions and sales)
--- ============================================================================
-INSERT INTO customers (first_name, last_name, email, phone, address, date_of_birth) VALUES
-('Kamal', 'Perera', 'kamal.perera@email.com', '+94 77 111 2222', '15 Baddegama Road, Dehiwala', '1985-03-15'),
-('Samantha', 'Fernando', 'sam.fernando@email.com', '+94 71 333 4444', '28 Kotte Road, Maharagama', '1990-07-22'),
-('Ranjith', 'Wijesinghe', 'ranjith.w@email.com', '+94 76 555 6666', '42 Galle Road, Bambalapitiya', '1978-11-08'),
-('Nimali', 'Abeykoon', 'nimali.abeykoon@email.com', '+94 77 777 8888', '7 Wellawatte High Road, Wellawatte', '1992-04-30'),
-('Chandrika', 'De Silva', 'chandrika.ds@email.com', '+94 71 999 0000', '55 Negombo Road, Kaduwela', '1988-09-12');
-
--- ============================================================================
--- Verify seed data was inserted correctly
--- ============================================================================
--- SELECT 'Suppliers count: ' AS info, COUNT(*) AS count FROM suppliers;
--- SELECT 'Medicines count: ' AS info, COUNT(*) AS count FROM medicines;
--- SELECT 'Customers count: ' AS info, COUNT(*) AS count FROM customers;
+IF NOT EXISTS (SELECT 1 FROM customers)
+BEGIN
+    INSERT INTO customers (first_name, last_name, email, phone, address, date_of_birth) VALUES
+    (N'Kamal', N'Perera', N'kamal.perera@email.com', N'+94 77 111 2222', N'Dehiwala', '1985-03-15'),
+    (N'Samantha', N'Fernando', N'sam.fernando@email.com', N'+94 71 333 4444', N'Maharagama', '1990-07-22'),
+    (N'Ranjith', N'Wijesinghe', N'ranjith.w@email.com', N'+94 76 555 6666', N'Bambalapitiya', '1978-11-08');
+END;
+GO

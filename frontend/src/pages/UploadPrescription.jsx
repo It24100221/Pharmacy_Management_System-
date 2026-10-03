@@ -1,0 +1,13 @@
+import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, FileImage, Upload } from 'lucide-react'
+import { useAuth } from '../context/AuthContext.jsx'
+import { prescriptionService } from '../services/apiService.js'
+import CustomerNavbar from '../components/CustomerNavbar.jsx'
+
+const UploadPrescription = () => {
+  const { session } = useAuth(); const navigate = useNavigate(); const [file, setFile] = useState(null); const [doctorName, setDoctorName] = useState(''); const [notes, setNotes] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
+  const submit = event => { event.preventDefault(); if (!file) return setError('Please choose a JPG, PNG, or PDF file.'); setBusy(true); setError(''); const reader = new FileReader(); reader.onload = async () => { try { await prescriptionService.uploadImage(reader.result, { doctorName, notes }); navigate('/my-prescriptions') } catch (requestError) { setError(requestError.response?.data?.message || 'Prescription upload failed.'); setBusy(false) } }; reader.readAsDataURL(file) }
+  return <div className="customer-workspace"><CustomerNavbar /><main className="customer-form-page"><Link className="customer-back-link" to="/customer-dashboard"><ArrowLeft size={16} /> Back to dashboard</Link><div className="customer-form-heading"><p className="public-kicker">Prescription care</p><h1>Upload prescription</h1><p>Send a clear image to our pharmacist for review.</p></div><form className="customer-upload-form" onSubmit={submit}><div className="customer-account-fields"><label>Customer name<input value={session?.name || session?.username || ''} readOnly /></label><label>Customer ID<input value={session?.customerId || ''} readOnly /></label></div><label>Prescription image<span className="customer-file-drop"><FileImage size={24} /><strong>{file ? file.name : 'Choose JPG, PNG, or PDF'}</strong><small>Maximum 10 MB</small><input type="file" accept="image/jpeg,image/png,application/pdf" onChange={event => setFile(event.target.files?.[0] || null)} /></span></label><label>Doctor name <small>(optional)</small><input value={doctorName} onChange={event => setDoctorName(event.target.value)} placeholder="Enter doctor name" /></label><label>Notes <small>(optional)</small><textarea value={notes} onChange={event => setNotes(event.target.value)} rows="4" placeholder="Add any instructions for the pharmacist" /></label>{error && <p className="public-auth-error">{error}</p>}<button className="public-auth-submit" disabled={busy}><Upload size={17} /> {busy ? 'Uploading...' : 'Upload prescription'}</button></form></main></div>
+}
+export default UploadPrescription

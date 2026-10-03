@@ -1,0 +1,12 @@
+import React from 'react'
+import { Link } from 'react-router-dom'
+import { ClipboardCheck, FileText, HeartPulse, Receipt, ShoppingBag, Upload } from 'lucide-react'
+import { useAuth } from '../context/AuthContext.jsx'
+import { useCart } from '../context/CartContext.jsx'
+import Navbar from '../components/CustomerNavbar.jsx'
+
+const CustomerDashboard = () => {
+  const { session } = useAuth(); const { cart, total } = useCart()
+  return <div className="customer-workspace"><Navbar /><main className="customer-dashboard"><section className="customer-welcome"><div><p className="public-kicker">Your customer dashboard</p><h1>Welcome back, {session?.name || session?.username}.</h1><p>Your pharmacy essentials, prescriptions, and orders in one calm place.</p></div><Link className="customer-primary-action" to="/pharmacy-items"><ShoppingBag size={18} /> Pharmacy Items</Link></section><section className="customer-stat-grid"><article><HeartPulse size={20} /><strong>{cart.length}</strong><span>Items in cart</span></article><article><ClipboardCheck size={20} /><strong>Track</strong><span>Prescription status</span></article><article><Receipt size={20} /><strong>0</strong><span>Previous orders</span></article><article><FileText size={20} /><strong>Rs. {total.toLocaleString()}</strong><span>Current cart value</span></article></section><section className="customer-feature-grid"><Link to="/pharmacy-items"><span><ShoppingBag size={21} /></span><div><p className="public-kicker">Pharmacy catalogue</p><h2>Pharmacy Items</h2><p>Search products, filter categories, check availability, and shop from the pharmacy catalogue.</p></div></Link><Link to="/upload-prescription"><span><Upload size={21} /></span><div><p className="public-kicker">Prescription care</p><h2>Upload Prescription</h2><p>Send an image to our pharmacist for review and receive status updates.</p></div></Link><Link to="/my-prescriptions"><span><ClipboardCheck size={21} /></span><div><p className="public-kicker">Your records</p><h2>My Prescription</h2><p>View uploads, dates, doctor notes, and pending, approved, or rejected status.</p></div></Link></section><section className="customer-history"><div><p className="public-kicker">Your records</p><h2>Orders, invoices, and payment history</h2><p>Your completed orders and invoices will appear here after checkout.</p></div><Link to="/customer/checkout" className="customer-outline-action">View cart and checkout</Link></section></main></div>
+}
+export default CustomerDashboard
