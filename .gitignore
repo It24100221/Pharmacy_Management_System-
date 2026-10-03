@@ -52,6 +52,10 @@ database/backups/
 tmp/
 temp/
 
+# Runtime prescription files (directory retained by .gitkeep)
+backend/uploads/prescriptions/*
+!backend/uploads/prescriptions/.gitkeep
+
 # Miscellaneous
 *.bak
 *.swp

@@ -9,26 +9,6 @@ class PrescriptionController {
     return req.user.role !== 'CUSTOMER' || prescription.customer_id === req.user.customerId;
   }
 
-  uploadPrescription = asyncHandler(async (req, res) => {
-    const { image, doctorName, notes } = req.body;
-    if (!req.user?.customerId || !image) return res.status(400).json({ success: false, message: 'A prescription image is required' });
-    if (!/^data:(image\/(jpeg|png)|application\/pdf);base64,/i.test(image)) return res.status(400).json({ success: false, message: 'Only JPG, PNG, and PDF prescriptions are accepted' });
-    const prescriptionId = await prescriptionRepository.createUpload({ customerId: req.user.customerId, image, doctorName, notes });
-    res.status(201).json({ success: true, message: 'Prescription uploaded for review', data: { id: prescriptionId, status: 'PENDING' } });
-  });
-
-  getCustomerUploads = asyncHandler(async (req, res) => {
-    const customerId = parseInt(req.params.id, 10);
-    const canRead = req.user?.role !== 'CUSTOMER' || req.user.customerId === customerId;
-    if (!canRead) return res.status(403).json({ success: false, message: 'You can only view your own prescriptions' });
-    const prescriptions = await prescriptionRepository.findUploadsByCustomer(customerId);
-    res.json({ success: true, data: { prescriptions } });
-  });
-
-  getOwnUploads = asyncHandler(async (req, res) => {
-    const prescriptions = await prescriptionRepository.findUploadsByCustomer(req.user.customerId);
-    res.json({ success: true, data: { prescriptions } });
-  });
   // GET /api/prescriptions
   // GET /api/prescriptions?search=...&start_date=...&end_date=...
   getAllPrescriptions = asyncHandler(async (req, res) => {

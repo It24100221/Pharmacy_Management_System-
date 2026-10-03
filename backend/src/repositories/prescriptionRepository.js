@@ -2,19 +2,33 @@ const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
 
 class PrescriptionRepository {
-  async createUpload({ customerId, image, doctorName, notes }) {
+  async createUpload({ customerId, originalFilename, storedFilename, storagePath, mimeType, fileSize, doctorName, notes }) {
     const [result] = await pool.execute(`
-      INSERT INTO prescription_uploads (customer_id, image, doctor_name, notes, status)
+      INSERT INTO prescription_uploads (
+        customer_id, original_filename, stored_filename, storage_path,
+        mime_type, file_size, doctor_name, notes, status
+      )
       OUTPUT INSERTED.prescription_id AS insertId
-      VALUES (?, ?, ?, ?, ?)
-    `, [customerId, image, doctorName || null, notes || null, 'PENDING']);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [customerId, originalFilename, storedFilename, storagePath, mimeType, fileSize, doctorName || null, notes || null, 'PENDING']);
 
     return result.insertId;
   }
 
+  async findUploadById(id) {
+    const [rows] = await pool.execute(`
+      SELECT prescription_id, customer_id, original_filename, stored_filename,
+        storage_path, mime_type, file_size, doctor_name, notes, status, uploaded_date
+      FROM prescription_uploads
+      WHERE prescription_id = ?
+    `, [id]);
+    return rows[0] || null;
+  }
+
   async findUploadsByCustomer(customerId) {
     const [rows] = await pool.execute(`
-      SELECT prescription_id, customer_id, doctor_name, notes, status,
+      SELECT prescription_id, customer_id, original_filename, mime_type, file_size,
+        storage_path, doctor_name, notes, status,
         uploaded_date AS created_date
       FROM prescription_uploads
       WHERE customer_id = ?

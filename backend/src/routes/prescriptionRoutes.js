@@ -1,13 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const prescriptionController = require('../controllers/prescriptionController');
+const prescriptionUploadController = require('../controllers/prescriptionUploadController');
 const { authorizeRoles } = require('../middleware/auth');
+const { parsePrescriptionUpload } = require('../middleware/prescriptionUpload');
 
 // Prescription routes
 router.get('/', authorizeRoles('CUSTOMER', 'ADMIN', 'PHARMACIST'), prescriptionController.getAllPrescriptions);
-router.post('/upload', authorizeRoles('CUSTOMER'), prescriptionController.uploadPrescription);
-router.get('/mine', authorizeRoles('CUSTOMER'), prescriptionController.getOwnUploads);
-router.get('/customer/:id', authorizeRoles('CUSTOMER', 'ADMIN', 'PHARMACIST'), prescriptionController.getCustomerUploads);
+router.post('/upload', authorizeRoles('CUSTOMER'), parsePrescriptionUpload, prescriptionUploadController.uploadPrescription);
+router.get('/mine', authorizeRoles('CUSTOMER'), prescriptionUploadController.getOwnUploads);
+router.get('/customer/:id', authorizeRoles('CUSTOMER', 'ADMIN', 'PHARMACIST'), prescriptionUploadController.getCustomerUploads);
 router.get('/recent', authorizeRoles('ADMIN', 'PHARMACIST'), prescriptionController.getRecentPrescriptions);
 router.get('/:id/availability', authorizeRoles('CUSTOMER', 'ADMIN', 'PHARMACIST'), prescriptionController.checkAvailability);
 router.get('/:id', authorizeRoles('CUSTOMER', 'ADMIN', 'PHARMACIST'), prescriptionController.getPrescriptionById);

@@ -33,6 +33,7 @@ const supplierRoutes = require('./routes/supplierRoutes');
 const purchaseRoutes = require('./routes/purchaseRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
+const prescriptionUploadRoutes = require('./routes/prescriptionUploadRoutes');
 const authRoutes = require('./routes/authRoutes');
 const { authenticateToken } = require('./middleware/auth');
 const productRoutes = require('./routes/productRoutes');
@@ -46,6 +47,7 @@ app.use('/api/suppliers', authenticateToken, supplierRoutes);
 app.use('/api/purchases', authenticateToken, purchaseRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/prescriptions', authenticateToken, prescriptionRoutes);
+app.use('/api/prescription-uploads', authenticateToken, prescriptionUploadRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

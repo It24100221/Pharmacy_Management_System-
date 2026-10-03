@@ -121,8 +121,12 @@ export const purchaseService = {
 // PRESCRIPTION SERVICE
 // ============================================================================
 export const prescriptionService = {
-  uploadImage: async (image, metadata = {}) => {
-    const response = await api.post('/prescriptions/upload', { image, ...metadata })
+  uploadFile: async (file, metadata = {}) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (metadata.doctorName) form.append('doctorName', metadata.doctorName)
+    if (metadata.notes) form.append('notes', metadata.notes)
+    const response = await api.post('/prescriptions/upload', form)
     return response.data
   },
   getCustomer: async (customerId) => {

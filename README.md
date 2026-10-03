@@ -148,7 +148,7 @@ pharmacy-management-system/
 ## 🛠️ Setup Instructions
 
 ### Prerequisites
-- Node.js (v16 or later)
+- Node.js (v20 or later; the upload parser uses the built-in Web Streams/FormData APIs)
 - Microsoft SQL Server (2019 or later)
 - npm or yarn
 
@@ -160,16 +160,18 @@ git clone <repository-url>
 cd pharmacy-management-system
 ```
 
-### 2. Database Setup (SSMS)
+### 2. Database Setup (SQL Server)
 
-Open SQL Server Management Studio and connect to your SQL Server instance. Open and execute these files in order:
+For the existing A1/A2 database, configure `backend/.env`, then apply the ordered migrations:
 
-```text
-database/schema.sql
-database/seed.sql
+```powershell
+cd backend
+npm.cmd run migrate
 ```
 
-The schema script creates the `pharmacy_management` database, tables, foreign keys, indexes, and update triggers. The seed script inserts starter suppliers, medicines, and customers.
+The runner creates `dbo.schema_migrations`, validates the known existing foundation, and applies each new SQL Server migration once in its own transaction. Re-running it is safe. Use `npm.cmd run inventory:database` for a credential-free structural inventory.
+
+Do **not** rerun `database/schema.sql` over an existing database. It is a historical reference and contains commerce tables that are intentionally pending future migrations. A new empty deployment needs an approved base/bootstrap migration; do not use the historical monolith as an incremental migration.
 
 ### 3. Backend Setup
 

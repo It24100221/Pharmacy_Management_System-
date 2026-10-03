@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "migrate": "node src/scripts/migrate.js",
+    "inventory:database": "node src/scripts/inventoryDatabase.js",
+    "verify:prescription-storage": "node src/scripts/verifyPrescriptionStorage.js",
     "test": "node --test"
   },
   "keywords": [

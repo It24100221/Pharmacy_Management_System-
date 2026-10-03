@@ -89,6 +89,7 @@ Customers cannot enter any arbitrary-ID CRUD route, including their own numeric 
 | `POST /api/prescriptions/upload` | CUSTOMER | Creates an upload for the token-derived customer ID |
 | `GET /api/prescriptions/mine` | CUSTOMER | Returns upload history for the token-derived customer ID |
 | `GET /api/prescriptions/customer/:id` | CUSTOMER, ADMIN, PHARMACIST | Customer receives 403 unless `:id` equals the authenticated customer ID |
+| `GET /api/prescription-uploads/:id/file` | CUSTOMER, ADMIN, PHARMACIST | Private file response; customer receives 403 unless the upload belongs to their authenticated customer ID |
 | `GET /api/prescriptions/recent` | ADMIN, PHARMACIST | Staff workflow read |
 | `GET /api/prescriptions/:id` | CUSTOMER, ADMIN, PHARMACIST | Customer receives 403 unless the record belongs to the authenticated customer |
 | `GET /api/prescriptions/:id/availability` | CUSTOMER, ADMIN, PHARMACIST | Same record ownership check before availability data is returned |
