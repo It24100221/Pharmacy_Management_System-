@@ -12,6 +12,8 @@
     "verify:product-catalog": "node src/scripts/verifyProductCatalog.js",
     "security:rotate-staff": "node src/scripts/rotateStaffPasswords.js",
     "verify:registration": "node src/scripts/verifyRegistration.js",
+    "verify:customer-order-flow": "node src/scripts/verifyCustomerOrderFlow.js",
+    "verify:sales-summary": "node src/scripts/verifySalesSummary.js",
     "test": "node --test"
   },
   "keywords": [

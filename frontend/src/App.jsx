@@ -1,4 +1,4 @@
-import { Navigate, Routes, Route } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout.jsx'
 import CustomerHome from './pages/CustomerHome.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
@@ -7,6 +7,12 @@ import PharmacyItems from './pages/PharmacyItems.jsx'
 import CustomerDashboard from './pages/CustomerDashboard.jsx'
 import UploadPrescription from './pages/UploadPrescription.jsx'
 import MyPrescriptions from './pages/MyPrescriptions.jsx'
+import CheckoutPage from './pages/CheckoutPage.jsx'
+import MyOrders from './pages/MyOrders.jsx'
+import OrderDetails from './pages/OrderDetails.jsx'
+import PrescriptionReviewQueue from './pages/PrescriptionReviewQueue.jsx'
+import BillingOrderQueue from './pages/BillingOrderQueue.jsx'
+import NotFound from './pages/NotFound.jsx'
 import AdminDashboard from './pages/AdminDashboard.jsx'
 import InventoryDashboard from './pages/InventoryDashboard.jsx'
 import SalesDashboard from './pages/SalesDashboard.jsx'
@@ -59,9 +65,11 @@ function App() {
       <Route element={<ProtectedRoute roles={['CUSTOMER']} />}>
         <Route path="/customer/dashboard" element={<CustomerDashboard />} />
         <Route path="/customer-dashboard" element={<CustomerDashboard />} />
-        <Route path="/customer/checkout" element={<Navigate to="/customer/dashboard" replace />} />
+        <Route path="/customer/checkout" element={<CheckoutPage />} />
         <Route path="/upload-prescription" element={<UploadPrescription />} />
         <Route path="/my-prescriptions" element={<MyPrescriptions />} />
+        <Route path="/my-orders" element={<MyOrders />} />
+        <Route path="/orders/:id" element={<OrderDetails />} />
       </Route>
 
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
@@ -110,6 +118,7 @@ function App() {
         <Route element={<AppLayout />}>
         <Route path="/sales" element={<POSPage />} />
         <Route path="/sales/receipt/:id" element={<ReceiptPage />} />
+        <Route path="/billing-orders" element={<BillingOrderQueue />} />
         </Route>
       </Route>
 
@@ -132,8 +141,10 @@ function App() {
         <Route path="/customers/edit/:id" element={<EditCustomerPage />} />
         <Route path="/prescriptions/create" element={<CreatePrescriptionPage />} />
         <Route path="/prescriptions/:id" element={<PrescriptionDetailsPage />} />
+        <Route path="/prescription-orders" element={<PrescriptionReviewQueue />} />
         </Route>
       </Route>
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

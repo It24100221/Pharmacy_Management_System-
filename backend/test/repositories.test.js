@@ -110,6 +110,21 @@ test('sale transaction rolls back and does not update stock for expired medicine
   }
 });
 
+test('today summary aggregates sale revenue independently from sale item rows', async () => {
+  let executedQuery = '';
+  const loaded = loadRepository('../src/repositories/saleRepository', {
+    async execute(query) { executedQuery = query; return [[{ total_sales: 2, total_revenue: 150, total_items_sold: 3 }]]; }
+  });
+  try {
+    const summary = await loaded.repository.getTodaySummary();
+    assert.deepEqual(summary, { total_sales: 2, total_revenue: 150, total_items_sold: 3 });
+    assert.match(executedQuery, /SELECT COALESCE\(SUM\(final_amount\), 0\) FROM sales/);
+    assert.doesNotMatch(executedQuery, /SUM\(s\.final_amount\)/);
+  } finally {
+    loaded.restore();
+  }
+});
+
 test('a post-commit sale read failure does not roll back or release twice', async () => {
   const state = { committed: 0, rolledBack: 0, released: 0 };
   const connection = {

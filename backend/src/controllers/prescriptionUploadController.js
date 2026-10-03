@@ -5,6 +5,7 @@ const prescriptionFileStorage = require('../services/prescriptionFileStorage');
 
 const toPublicUpload = upload => ({
   prescription_id: upload.prescription_id,
+  order_id: upload.order_id,
   customer_id: upload.customer_id,
   original_filename: upload.original_filename,
   mime_type: upload.mime_type,
@@ -21,7 +22,7 @@ const validateMetadata = ({ doctorName, notes }) => {
   if (notes.length > 5000) throw new ApiError('Notes must not exceed 5000 characters', 400);
 };
 
-async function persistPrescriptionUpload({ customerId, file, doctorName, notes }, dependencies = {}) {
+async function persistPrescriptionUpload({ customerId, file, doctorName, notes, orderId }, dependencies = {}) {
   const repository = dependencies.repository || prescriptionRepository;
   const storage = dependencies.storage || prescriptionFileStorage;
   const metadata = storage.validateAndDescribe(file);
@@ -33,6 +34,7 @@ async function persistPrescriptionUpload({ customerId, file, doctorName, notes }
       ...metadata,
       doctorName: doctorName || null,
       notes: notes || null,
+      orderId: orderId || null,
     });
     return { prescriptionId, metadata };
   } catch (error) {
@@ -47,13 +49,15 @@ async function persistPrescriptionUpload({ customerId, file, doctorName, notes }
 
 const uploadPrescription = asyncHandler(async (req, res) => {
   if (!req.user?.customerId) throw new ApiError('Customer profile is required', 400);
-  const { file, doctorName, notes } = req.prescriptionUpload;
+  const { file, doctorName, notes, orderId } = req.prescriptionUpload;
+  if (orderId !== null && (!Number.isInteger(orderId) || orderId <= 0)) throw new ApiError('Invalid order ID', 400);
   validateMetadata({ doctorName, notes });
   const { prescriptionId, metadata } = await persistPrescriptionUpload({
     customerId: req.user.customerId,
     file,
     doctorName,
     notes,
+    orderId,
   });
 
   res.status(201).json({
@@ -61,7 +65,8 @@ const uploadPrescription = asyncHandler(async (req, res) => {
     message: 'Prescription uploaded for review',
     data: {
       id: prescriptionId,
-      status: 'PENDING',
+      order_id: orderId,
+      status: orderId ? 'PENDING_REVIEW' : 'PENDING',
       original_filename: metadata.originalFilename,
       mime_type: metadata.mimeType,
       file_size: metadata.fileSize,

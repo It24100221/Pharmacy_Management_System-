@@ -2,22 +2,42 @@ const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
 
 class PrescriptionRepository {
-  async createUpload({ customerId, originalFilename, storedFilename, storagePath, mimeType, fileSize, doctorName, notes }) {
-    const [result] = await pool.execute(`
-      INSERT INTO prescription_uploads (
-        customer_id, original_filename, stored_filename, storage_path,
-        mime_type, file_size, doctor_name, notes, status
-      )
-      OUTPUT INSERTED.prescription_id AS insertId
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [customerId, originalFilename, storedFilename, storagePath, mimeType, fileSize, doctorName || null, notes || null, 'PENDING']);
-
-    return result.insertId;
+  async createUpload({ customerId, originalFilename, storedFilename, storagePath, mimeType, fileSize, doctorName, notes, orderId }) {
+    const connection = orderId ? await pool.getConnection() : pool;
+    try {
+      if (orderId) {
+        await connection.beginTransaction();
+        const [orders] = await connection.execute(
+          "SELECT order_id FROM orders WITH (UPDLOCK, ROWLOCK) WHERE order_id = ? AND customer_id = ? AND status = 'PRESCRIPTION_REQUIRED'",
+          [orderId, customerId]
+        );
+        if (!orders[0]) throw new ApiError('Order does not require a prescription or is not owned by this customer', 409);
+      }
+      const [result] = await connection.execute(`
+        INSERT INTO prescription_uploads (
+          customer_id, order_id, original_filename, stored_filename, storage_path,
+          mime_type, file_size, doctor_name, notes, status
+        )
+        OUTPUT INSERTED.prescription_id AS insertId
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [customerId, orderId || null, originalFilename, storedFilename, storagePath, mimeType, fileSize, doctorName || null, notes || null, 'PENDING']);
+      if (orderId) {
+        await connection.execute("UPDATE orders SET status = 'PENDING_REVIEW' WHERE order_id = ?", [orderId]);
+        await connection.commit();
+      }
+      return result.insertId;
+    } catch (error) {
+      if (orderId) { try { await connection.rollback(); } catch {} }
+      if ((error.number === 2601 || error.number === 2627) && orderId) throw new ApiError('This order already has a prescription', 409);
+      throw error;
+    } finally {
+      if (orderId) connection.release();
+    }
   }
 
   async findUploadById(id) {
     const [rows] = await pool.execute(`
-      SELECT prescription_id, customer_id, original_filename, stored_filename,
+      SELECT prescription_id, customer_id, order_id, original_filename, stored_filename,
         storage_path, mime_type, file_size, doctor_name, notes, status, uploaded_date
       FROM prescription_uploads
       WHERE prescription_id = ?
@@ -27,7 +47,7 @@ class PrescriptionRepository {
 
   async findUploadsByCustomer(customerId) {
     const [rows] = await pool.execute(`
-      SELECT prescription_id, customer_id, original_filename, mime_type, file_size,
+      SELECT prescription_id, customer_id, order_id, original_filename, mime_type, file_size,
         storage_path, doctor_name, notes, status,
         uploaded_date AS created_date
       FROM prescription_uploads

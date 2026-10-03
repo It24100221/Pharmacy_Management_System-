@@ -7,6 +7,7 @@ class SaleRepository {
     let query = `
       SELECT
         s.id,
+        s.order_id,
         s.sale_date,
         s.customer_id,
         s.total_amount,
@@ -69,6 +70,7 @@ class SaleRepository {
     const headerQuery = `
       SELECT
         s.id,
+        s.order_id,
         s.sale_date,
         s.customer_id,
         s.total_amount,
@@ -129,6 +131,15 @@ class SaleRepository {
     try {
       await connection.beginTransaction();
 
+      if (saleData.order_id) {
+        const [orderRows] = await connection.execute(
+          "SELECT order_id, customer_id FROM orders WITH (UPDLOCK, ROWLOCK) WHERE order_id = ? AND status = 'READY_FOR_BILLING'",
+          [saleData.order_id]
+        );
+        if (!orderRows[0]) throw new ApiError('Order is no longer ready for billing', 409);
+        if (Number(orderRows[0].customer_id) !== Number(saleData.customer_id)) throw new ApiError('Order customer mismatch', 409);
+      }
+
       // 1. Validate and calculate totals
       let totalAmount = 0;
       const validatedItems = [];
@@ -188,20 +199,20 @@ class SaleRepository {
       }
 
       // 2. Create sale header
-      const saleQuery = `
+      const saleQuery = saleData.order_id ? `
+        INSERT INTO sales (customer_id, order_id, sale_date, total_amount, discount, final_amount, payment_method, notes)
+        OUTPUT INSERTED.id AS insertId
+        VALUES (?, ?, NOW(), ?, ?, ?, ?, ?)
+      ` : `
         INSERT INTO sales (customer_id, sale_date, total_amount, discount, final_amount, payment_method, notes)
         OUTPUT INSERTED.id AS insertId
         VALUES (?, NOW(), ?, ?, ?, ?, ?)
       `;
 
-      const [saleResult] = await connection.execute(saleQuery, [
-        saleData.customer_id || null,
-        totalAmount,
-        discount,
-        finalAmount,
-        saleData.payment_method || 'Cash',
-        saleData.notes || null
-      ]);
+      const saleParams = [saleData.customer_id || null];
+      if (saleData.order_id) saleParams.push(saleData.order_id);
+      saleParams.push(totalAmount, discount, finalAmount, saleData.payment_method || 'Cash', saleData.notes || null);
+      const [saleResult] = await connection.execute(saleQuery, saleParams);
 
       saleId = saleResult.insertId;
 
@@ -230,6 +241,11 @@ class SaleRepository {
 
         // Reduce stock
         await connection.execute(stockReduceQuery, [item.quantity, item.medicine_id]);
+      }
+
+      if (saleData.order_id) {
+        await connection.execute("UPDATE orders SET status = 'COMPLETED' WHERE order_id = ?", [saleData.order_id]);
+        await connection.execute("UPDATE prescription_uploads SET status = 'COMPLETED' WHERE order_id = ?", [saleData.order_id]);
       }
 
       // Commit transaction
@@ -304,12 +320,11 @@ class SaleRepository {
   async getTodaySummary() {
     const query = `
       SELECT
-        COUNT(DISTINCT s.id) AS total_sales,
-        SUM(s.final_amount) AS total_revenue,
-        SUM(si.quantity) AS total_items_sold
-      FROM sales s
-      LEFT JOIN sale_items si ON s.id = si.sale_id
-      WHERE DATE(s.sale_date) = CURDATE()
+        (SELECT COUNT(*) FROM sales WHERE DATE(sale_date) = CURDATE()) AS total_sales,
+        (SELECT COALESCE(SUM(final_amount), 0) FROM sales WHERE DATE(sale_date) = CURDATE()) AS total_revenue,
+        (SELECT COALESCE(SUM(si.quantity), 0)
+         FROM sale_items si INNER JOIN sales item_sales ON item_sales.id = si.sale_id
+         WHERE DATE(item_sales.sale_date) = CURDATE()) AS total_items_sold
     `;
 
     const [rows] = await pool.execute(query);

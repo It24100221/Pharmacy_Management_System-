@@ -37,10 +37,14 @@ const prescriptionUploadRoutes = require('./routes/prescriptionUploadRoutes');
 const authRoutes = require('./routes/authRoutes');
 const { authenticateToken } = require('./middleware/auth');
 const productRoutes = require('./routes/productRoutes');
+const cartRoutes = require('./routes/cartRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/cart', authenticateToken, cartRoutes);
+app.use('/api/orders', authenticateToken, orderRoutes);
 app.use('/api/medicines', authenticateToken, medicineRoutes);
 app.use('/api/sales', authenticateToken, salesRoutes);
 app.use('/api/suppliers', authenticateToken, supplierRoutes);

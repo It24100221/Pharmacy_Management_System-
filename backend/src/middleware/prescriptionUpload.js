@@ -50,6 +50,7 @@ async function parsePrescriptionUpload(req, res, next) {
 
     const doctorName = form.get('doctorName');
     const notes = form.get('notes');
+    const orderId = form.get('orderId');
     req.prescriptionUpload = {
       file: {
         buffer: Buffer.from(await file.arrayBuffer()),
@@ -59,6 +60,7 @@ async function parsePrescriptionUpload(req, res, next) {
       },
       doctorName: typeof doctorName === 'string' ? doctorName.trim() : '',
       notes: typeof notes === 'string' ? notes.trim() : '',
+      orderId: typeof orderId === 'string' && orderId.trim() ? Number.parseInt(orderId, 10) : null,
     };
     return next();
   } catch (error) {

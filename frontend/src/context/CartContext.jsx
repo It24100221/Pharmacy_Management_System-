@@ -1,26 +1,39 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useAuth } from './AuthContext.jsx'
+import { cartService, orderService } from '../services/apiService.js'
 
 const CartContext = createContext(null)
-const readCart = () => { try { return JSON.parse(localStorage.getItem('pharmacy_customer_cart')) || [] } catch { return [] } }
+const emptyCart = { cart_id: null, items: [], subtotal: 0, total_items: 0 }
 
 export function CartProvider({ children }) {
-  const [cart, setCart] = useState(readCart)
-  useEffect(() => {
-    const clearForLogout = () => setCart([])
-    window.addEventListener('pharmacy:logout', clearForLogout)
-    return () => window.removeEventListener('pharmacy:logout', clearForLogout)
+  const { session } = useAuth()
+  const [state, setState] = useState(emptyCart)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const isCustomer = session?.role === 'CUSTOMER'
+
+  const apply = useCallback(payload => {
+    const cart = payload?.data || payload || emptyCart
+    setState({ ...cart, items: cart.items || [], subtotal: Number(cart.subtotal || 0), total_items: Number(cart.total_items || 0) })
+    setError('')
+    return cart
   }, [])
-  const save = next => { setCart(next); localStorage.setItem('pharmacy_customer_cart', JSON.stringify(next)) }
-  const addItem = medicine => {
-    const existing = cart.find(item => item.medicineId === medicine.id)
-    if (existing) return save(cart.map(item => item.medicineId === medicine.id ? { ...item, quantity: Math.min(item.quantity + 1, medicine.quantity) } : item))
-    save([...cart, { medicineId: medicine.id, name: medicine.name, category: medicine.category, quantity: 1, unitPrice: medicine.unitPrice, availableQuantity: medicine.quantity, batchNumber: medicine.batchNumber }])
-  }
-  const updateQuantity = (medicineId, quantity) => quantity < 1 ? save(cart.filter(item => item.medicineId !== medicineId)) : save(cart.map(item => item.medicineId === medicineId ? { ...item, quantity: Math.min(quantity, item.availableQuantity) } : item))
-  const removeItem = medicineId => save(cart.filter(item => item.medicineId !== medicineId))
-  const clear = () => save([])
-  const total = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
-  return <CartContext.Provider value={{ cart, addItem, updateQuantity, removeItem, clear, total }}>{children}</CartContext.Provider>
+  const refresh = useCallback(async () => {
+    if (!isCustomer) { setState(emptyCart); return emptyCart }
+    setLoading(true)
+    try { return apply(await cartService.get()) }
+    catch (requestError) { setError(requestError.response?.data?.message || 'Unable to load cart.'); throw requestError }
+    finally { setLoading(false) }
+  }, [apply, isCustomer])
+  useEffect(() => { if (isCustomer) refresh().catch(() => {}); else setState(emptyCart) }, [isCustomer, refresh, session?.userId])
+  const mutate = useCallback(async action => { setLoading(true); try { return apply(await action()) } catch (requestError) { setError(requestError.response?.data?.message || 'Cart update failed.'); throw requestError } finally { setLoading(false) } }, [apply])
+  const addItem = product => mutate(() => cartService.add(product.productId, 1))
+  const updateQuantity = (productId, quantity) => quantity < 1 ? mutate(() => cartService.remove(productId)) : mutate(() => cartService.update(productId, quantity))
+  const removeItem = productId => mutate(() => cartService.remove(productId))
+  const clear = () => mutate(() => cartService.clear())
+  const checkout = async () => { setLoading(true); try { const response = await orderService.checkout(); setState(emptyCart); setError(''); return response.data } catch (requestError) { setError(requestError.response?.data?.message || 'Checkout failed.'); throw requestError } finally { setLoading(false) } }
+  const value = useMemo(() => ({ cart: state.items, total: state.subtotal, itemCount: state.total_items, loading, error, refresh, addItem, updateQuantity, removeItem, clear, checkout }), [state, loading, error, refresh])
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }
 
 export const useCart = () => useContext(CartContext)

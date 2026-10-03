@@ -126,6 +126,7 @@ export const prescriptionService = {
     form.append('file', file)
     if (metadata.doctorName) form.append('doctorName', metadata.doctorName)
     if (metadata.notes) form.append('notes', metadata.notes)
+    if (metadata.orderId) form.append('orderId', String(metadata.orderId))
     const response = await api.post('/prescriptions/upload', form)
     return response.data
   },
@@ -134,6 +135,7 @@ export const prescriptionService = {
     return response.data
   },
   getMine: async () => (await api.get('/prescriptions/mine')).data,
+  getFile: async id => (await api.get(`/prescription-uploads/${id}/file`, { responseType: 'blob' })).data,
   getAll: async (params = {}) => {
     const response = await api.get('/prescriptions', { params })
     return response.data
@@ -163,6 +165,24 @@ export const prescriptionService = {
 export const productService = {
   getAll: async (params = {}) => (await api.get('/products', { params })).data,
   getByCode: async productCode => (await api.get(`/products/${productCode}`)).data,
+}
+
+export const cartService = {
+  get: async () => (await api.get('/cart')).data,
+  add: async (productId, quantity = 1) => (await api.post('/cart/items', { product_id: productId, quantity })).data,
+  update: async (productId, quantity) => (await api.patch(`/cart/items/${productId}`, { quantity })).data,
+  remove: async productId => (await api.delete(`/cart/items/${productId}`)).data,
+  clear: async () => (await api.delete('/cart')).data,
+}
+
+export const orderService = {
+  checkout: async () => (await api.post('/orders/checkout')).data,
+  getMine: async () => (await api.get('/orders/mine')).data,
+  getById: async id => (await api.get(`/orders/${id}`)).data,
+  getPendingReview: async () => (await api.get('/orders/pending-review')).data,
+  getReadyForBilling: async () => (await api.get('/orders/ready-for-billing')).data,
+  review: async (id, decision, reason = '') => (await api.post(`/orders/${id}/review`, { decision, reason })).data,
+  completeSale: async (id, data) => (await api.post(`/orders/${id}/complete-sale`, data)).data,
 }
 
 // ============================================================================
@@ -204,6 +224,9 @@ const apiServices = {
   customer: customerService,
   purchase: purchaseService,
   prescription: prescriptionService,
+  product: productService,
+  cart: cartService,
+  order: orderService,
   sales: salesService,
 }
 
