@@ -3,6 +3,28 @@ const assert = require('node:assert/strict');
 
 const MedicineValidator = require('../src/validators/medicineValidator');
 const SalesValidator = require('../src/validators/salesValidator');
+const RegistrationValidator = require('../src/validators/registrationValidator');
+
+test('customer registration trims and normalizes all identity fields', () => {
+  const result = RegistrationValidator.validate({
+    name: '  Maya   Perera ', email: ' Maya@Example.COM ', phone: '+94 77 123 4567',
+    address: '  10   Main Street ', username: ' maya.perera ', password: 'securepass', confirmPassword: 'securepass'
+  });
+  assert.deepEqual(result, {
+    name: 'Maya Perera', email: 'maya@example.com', phone: '+94 77 123 4567',
+    address: '10 Main Street', username: 'maya.perera', password: 'securepass'
+  });
+});
+
+test('customer registration rejects invalid and blank required values', () => {
+  const valid = { name: 'Maya Perera', email: 'maya@example.com', phone: '+94771234567', address: '10 Main Street', username: 'maya', password: 'securepass', confirmPassword: 'securepass' };
+  for (const patch of [
+    { email: 'invalid' }, { phone: '12' }, { name: ' ' }, { address: ' ' },
+    { username: 'x' }, { password: 'short', confirmPassword: 'short' }, { confirmPassword: 'different' }
+  ]) {
+    assert.throws(() => RegistrationValidator.validate({ ...valid, ...patch }), error => error.statusCode === 400);
+  }
+});
 
 test('sale validation accepts items without a client-provided price', () => {
   const result = SalesValidator.validateCreate({

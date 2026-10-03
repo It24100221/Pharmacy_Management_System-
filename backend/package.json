@@ -11,6 +11,7 @@
     "verify:prescription-storage": "node src/scripts/verifyPrescriptionStorage.js",
     "verify:product-catalog": "node src/scripts/verifyProductCatalog.js",
     "security:rotate-staff": "node src/scripts/rotateStaffPasswords.js",
+    "verify:registration": "node src/scripts/verifyRegistration.js",
     "test": "node --test"
   },
   "keywords": [

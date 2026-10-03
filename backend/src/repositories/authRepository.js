@@ -1,4 +1,5 @@
 const { pool } = require('../config/database')
+const ApiError = require('../middleware/errorHandler')
 
 class AuthRepository {
   async findUserById(userId) {
@@ -32,6 +33,16 @@ class AuthRepository {
     const connection = await pool.getConnection()
     try {
       await connection.beginTransaction()
+      const [existingUsers] = await connection.execute(
+        'SELECT TOP 1 user_id FROM users WITH (UPDLOCK, HOLDLOCK) WHERE username = ?',
+        [username]
+      )
+      if (existingUsers.length) throw new ApiError('Username is already registered', 409)
+      const [existingCustomers] = await connection.execute(
+        'SELECT TOP 1 id FROM customers WITH (UPDLOCK, HOLDLOCK) WHERE email = ?',
+        [email]
+      )
+      if (existingCustomers.length) throw new ApiError('Email is already registered', 409)
       const [userResult] = await connection.execute(
         'INSERT INTO users (username, password, role) OUTPUT INSERTED.user_id AS insertId VALUES (?, ?, ?)',
         [username, password, 'CUSTOMER']
@@ -47,6 +58,9 @@ class AuthRepository {
       return { userId: userResult.insertId, customerId: customerResult.insertId }
     } catch (error) {
       await connection.rollback()
+      if (error.number === 2601 || error.number === 2627) {
+        throw new ApiError('Username or email is already registered', 409)
+      }
       throw error
     } finally {
       connection.release()

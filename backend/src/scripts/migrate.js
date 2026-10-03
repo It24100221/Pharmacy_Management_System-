@@ -63,7 +63,11 @@ async function run() {
         await transaction.commit();
         console.log(`Applied: ${migrationName}`);
       } catch (error) {
-        await transaction.rollback();
+        try {
+          await transaction.rollback();
+        } catch {
+          // XACT_ABORT can roll back automatically; preserve the original SQL error.
+        }
         throw error;
       }
     }

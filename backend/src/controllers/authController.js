@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const asyncHandler = require('../utils/asyncHandler')
 const authRepository = require('../repositories/authRepository')
+const RegistrationValidator = require('../validators/registrationValidator')
 const { JWT_AUDIENCE, JWT_ISSUER, getJwtSecret } = require('../config/jwt')
 
 const staffRoles = ['ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES', 'SUPPLIER']
@@ -33,11 +34,8 @@ const login = roles => asyncHandler(async (req, res) => {
 })
 
 const registerCustomer = asyncHandler(async (req, res) => {
-  const { name, email, phone, address, username, password, confirmPassword } = req.body
-  if (!name || !email || !username || !password) return res.status(400).json({ success: false, message: 'Name, email, username, and password are required' })
-  if (password.length < 8) return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' })
-  if (confirmPassword !== undefined && password !== confirmPassword) return res.status(400).json({ success: false, message: 'Passwords do not match' })
-  const account = await authRepository.createCustomer({ name, email, phone, address, username, password: await bcrypt.hash(password, 12) })
+  const validated = RegistrationValidator.validate(req.body)
+  const account = await authRepository.createCustomer({ ...validated, password: await bcrypt.hash(validated.password, 12) })
   res.status(201).json({ success: true, message: 'Customer account created', data: account })
 })
 
