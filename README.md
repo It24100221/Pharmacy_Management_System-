@@ -227,7 +227,7 @@ The frontend will start on `http://localhost:3000`
 
 ### Authentication and customer flow
 
-The public navbar provides `About`, `Pharmacy Items`, `Login`, and `Register` links. Customer routes are `/customer-register`, `/customer-login`, `/customer/dashboard`, and `/customer/checkout`. Staff access begins at `/staff-login` and redirects to `/admin-dashboard`, `/pharmacist-dashboard`, `/inventory-dashboard`, `/sales-dashboard`, or `/supplier-dashboard` according to the stored role.
+The public navbar provides `About`, `Pharmacy Items`, `Login`, and `Register` links. Customer routes include `/customer-register`, `/customer-login`, `/customer/dashboard`, `/customer/checkout`, and `/my-orders`. Pharmacists review uploaded order prescriptions at `/prescription-orders`; sales staff retrieve approved SQL-backed orders at `/billing-orders`. Staff access begins at `/staff-login` and redirects to the role dashboard.
 
 Set `JWT_SECRET` in `backend/.env`. Development staff accounts are seeded locally. Credentials are provided separately and are not stored in the repository. Use `npm.cmd run security:rotate-staff` from `backend` to rotate the local accounts; the generated credential handoff is written beneath the ignored `backend/.local/` directory. Passwords in the database are bcrypt hashes.
 

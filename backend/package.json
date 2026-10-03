@@ -14,6 +14,7 @@
     "verify:registration": "node src/scripts/verifyRegistration.js",
     "verify:customer-order-flow": "node src/scripts/verifyCustomerOrderFlow.js",
     "verify:sales-summary": "node src/scripts/verifySalesSummary.js",
+    "verify:inventory-lifecycle": "node src/scripts/verifyInventoryLifecycle.js",
     "test": "node --test"
   },
   "keywords": [
