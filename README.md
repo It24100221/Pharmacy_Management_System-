@@ -229,7 +229,7 @@ The frontend will start on `http://localhost:3000`
 
 The public navbar provides `About`, `Pharmacy Items`, `Login`, and `Register` links. Customer routes are `/customer-register`, `/customer-login`, `/customer/dashboard`, and `/customer/checkout`. Staff access begins at `/staff-login` and redirects to `/admin-dashboard`, `/pharmacist-dashboard`, `/inventory-dashboard`, `/sales-dashboard`, or `/supplier-dashboard` according to the stored role.
 
-Set `JWT_SECRET` in `backend/.env`. Run `database/staff_default_users.sql` after the base schema to add or repair the default accounts. The development credentials are `admin/admin123`, `pharmacist/pharma123`, `inventory/inventory123`, `sales/sales123`, and `supplier/supplier123`; change or remove them before production use. Passwords in the database are bcrypt hashes.
+Set `JWT_SECRET` in `backend/.env`. Development staff accounts are seeded locally. Credentials are provided separately and are not stored in the repository. Use `npm.cmd run security:rotate-staff` from `backend` to rotate the local accounts; the generated credential handoff is written beneath the ignored `backend/.local/` directory. Passwords in the database are bcrypt hashes.
 
 For the current SQL Server connection, open SQL Server Management Studio, select the `pharmacy_management` database, and execute `database/staff_default_users.sql`. For a MySQL deployment, translate the `IDENTITY`, `NVARCHAR`, `GO`, and `TOP` syntax to the MySQL adapter before running it; the current backend connection is `mssql`.
 

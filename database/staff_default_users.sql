@@ -1,8 +1,9 @@
 /*
   Senevirathna Medical Pharmacy
   SQL Server migration for default staff authentication accounts.
-  All passwords below are bcrypt hashes. The plain-text values are documented
-  in README.md for local development only and must be changed in production.
+  All passwords below are non-disclosed bcrypt bootstrap hashes. Working
+  credentials are never stored in this repository. Rotate local accounts with
+  the backend security:rotate-staff command before use.
 */
 USE pharmacy_management;
 GO
@@ -56,11 +57,11 @@ GO
 
 DECLARE @staff TABLE (username NVARCHAR(100), password_hash NVARCHAR(255), staff_name NVARCHAR(200), staff_role NVARCHAR(20), email NVARCHAR(255), phone NVARCHAR(50));
 INSERT INTO @staff VALUES
-    (N'admin', N'$2a$12$ddm8RHU613WAwzhUwRSf6Oo.Tjf7iAoNhSBiqTbCIGpVzsn/hFEAC', N'Pharmacy Administrator', N'ADMIN', N'admin@senevirathna.local', NULL),
-    (N'pharmacist', N'$2a$12$H6KcerPt46iKr/ZPpKQKKOH74Wg0UhdUN9v9oFFWPGVNedyptfQgu', N'Lead Pharmacist', N'PHARMACIST', N'pharmacist@senevirathna.local', NULL),
-    (N'inventory', N'$2a$12$E9CLQ67F6SH4t9m.wNWGy.sfil57HgjzlVX8ub0ZC.3OI7BWKl1WW', N'Inventory Coordinator', N'INVENTORY', N'inventory@senevirathna.local', NULL),
-    (N'sales', N'$2a$12$Q9GTxb14dD.ANc.9GUvope/2aoAu.71WxUhQ2sbACL8vIVueQ2YS6', N'Sales Coordinator', N'SALES', N'sales@senevirathna.local', NULL),
-    (N'supplier', N'$2a$12$CboP72aL.WG0.sXl00a5B.6/8XyWb.JABaSU0o7igy2Lr0gSEeF3e', N'Supplier Coordinator', N'SUPPLIER', N'Supply@gmail.com', NULL);
+    (N'admin', N'$2a$12$H0R7NyUfjMdqur5s9ceRb.nfuFRKslQEEcWzf6X.nQNuN61qpqSLC', N'Pharmacy Administrator', N'ADMIN', N'admin@senevirathna.local', NULL),
+    (N'pharmacist', N'$2a$12$BzNGb3ais7ijiAjlo4JPh.18jZ61IKwyUAZK1UeCqjKRtxYyiFPdG', N'Lead Pharmacist', N'PHARMACIST', N'pharmacist@senevirathna.local', NULL),
+    (N'inventory', N'$2a$12$kt0OgieNT5v6z2jBsglfFeuXiZDuvUEt/bGJzsmwjbg6YCRaXmKmm', N'Inventory Coordinator', N'INVENTORY', N'inventory@senevirathna.local', NULL),
+    (N'sales', N'$2a$12$/thcdH92DyfJBNjtx9JRFO56LZNUeyzuylALp86vHQ.Y3rMZyxL.m', N'Sales Coordinator', N'SALES', N'sales@senevirathna.local', NULL),
+    (N'supplier', N'$2a$12$eIdjou3rDD638QoQe9G2xOxZtqoxSA3o8oGh7FbdwGtOOCilG1igW', N'Supplier Coordinator', N'SUPPLIER', N'Supply@gmail.com', NULL);
 
 INSERT INTO users (username, password, role)
 SELECT s.username, s.password_hash, s.staff_role

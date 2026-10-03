@@ -43,6 +43,7 @@ coverage/
 
 # Database
 .local/
+backend/.local/
 database/backups/
 *.db
 *.sqlite

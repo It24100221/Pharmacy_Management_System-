@@ -10,6 +10,7 @@
     "inventory:database": "node src/scripts/inventoryDatabase.js",
     "verify:prescription-storage": "node src/scripts/verifyPrescriptionStorage.js",
     "verify:product-catalog": "node src/scripts/verifyProductCatalog.js",
+    "security:rotate-staff": "node src/scripts/rotateStaffPasswords.js",
     "test": "node --test"
   },
   "keywords": [
