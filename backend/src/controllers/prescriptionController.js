@@ -189,6 +189,7 @@ class PrescriptionController {
       .filter(item => item.availability_status === 'available')
       .map(item => ({
       medicine_id: item.medicine_id,
+      product_code: item.product_code,
       medicine_name: item.medicine_name,
       generic_name: item.generic_name,
       batch_number: item.batch_number,

@@ -161,7 +161,8 @@ export const prescriptionService = {
 }
 
 export const productService = {
-  getAll: async () => (await api.get('/products')).data,
+  getAll: async (params = {}) => (await api.get('/products', { params })).data,
+  getByCode: async productCode => (await api.get(`/products/${productCode}`)).data,
 }
 
 // ============================================================================

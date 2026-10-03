@@ -138,6 +138,7 @@ class PrescriptionRepository {
         pi.id,
         pi.prescription_id,
         pi.medicine_id,
+        pr.product_code,
         m.name AS medicine_name,
         m.generic_name,
         m.batch_number,
@@ -148,6 +149,7 @@ class PrescriptionRepository {
         pi.created_at
       FROM prescription_items pi
       LEFT JOIN medicines m ON pi.medicine_id = m.id
+      LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE pi.prescription_id = ?
       ORDER BY pi.id
     `;
@@ -218,6 +220,7 @@ class PrescriptionRepository {
         pi.id,
         pi.prescription_id,
         pi.medicine_id,
+        pr.product_code,
         m.name AS medicine_name,
         m.generic_name,
         m.batch_number,
@@ -234,6 +237,7 @@ class PrescriptionRepository {
         (m.quantity - pi.quantity) AS remaining_after_dispense
       FROM prescription_items pi
       LEFT JOIN medicines m ON pi.medicine_id = m.id
+      LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE pi.prescription_id = ?
       ORDER BY pi.id
     `;

@@ -396,6 +396,7 @@ export function AppProvider({ children }) {
           customer: res.data.customer,
           items: (res.data.items || []).map(item => ({
             medicineId: Number(item.medicine_id),
+            productCode: item.product_code,
             medicineName: item.medicine_name,
             batchNumber: item.batch_number,
             unitPrice: Number(item.unit_price),

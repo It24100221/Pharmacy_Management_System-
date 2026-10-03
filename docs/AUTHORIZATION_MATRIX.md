@@ -1,6 +1,6 @@
 # Authorization Matrix
 
-Phase: Foundation Stabilization A2
+Phase: Business Foundation B1
 
 Date: 2026-10-03
 
@@ -24,7 +24,7 @@ The matrix uses the role values already stored in SQL Server. Business-language 
 | Surface | Access |
 |---|---|
 | Frontend `/`, `/pharmacy-items`, `/login`, `/customer-login`, `/staff-login`, `/customer-register`, `/register` | Public |
-| `GET /api/health`, `GET /api/products` | Public read |
+| `GET /api/health`, `GET /api/products`, `GET /api/products/:productCode` | Public read |
 | `POST /api/customers/register` | Public customer registration |
 | Customer/staff login APIs | Public credential exchange |
 
@@ -122,6 +122,10 @@ Customers cannot enter any arbitrary-ID CRUD route, including their own numeric 
 ### Sales
 
 All sale list, summary, record, receipt, and create routes are restricted to `ADMIN` and `SALES`.
+
+### Product catalogue
+
+`GET /api/products` and `GET /api/products/:productCode` are public, customer-safe reads. No product create, update, delete, image-upload, cart, or order API is deployed in B1; requests to mutate `/api/products` return 404 regardless of authentication.
 
 ## Enforcement principles
 

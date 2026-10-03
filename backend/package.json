@@ -9,6 +9,7 @@
     "migrate": "node src/scripts/migrate.js",
     "inventory:database": "node src/scripts/inventoryDatabase.js",
     "verify:prescription-storage": "node src/scripts/verifyPrescriptionStorage.js",
+    "verify:product-catalog": "node src/scripts/verifyProductCatalog.js",
     "test": "node --test"
   },
   "keywords": [

@@ -102,6 +102,7 @@ class SaleRepository {
         si.id,
         si.sale_id,
         si.medicine_id,
+        pr.product_code,
         m.name AS medicine_name,
         m.batch_number,
         si.quantity,
@@ -109,6 +110,7 @@ class SaleRepository {
         si.line_total
       FROM sale_items si
       LEFT JOIN medicines m ON si.medicine_id = m.id
+      LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE si.sale_id = ?
       ORDER BY si.id
     `;

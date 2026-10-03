@@ -226,7 +226,7 @@ test('medicine count applies the same search, category, stock, and expiry filter
     assert.match(captured.query, /m\.category = \?/);
     assert.match(captured.query, /m\.quantity <= m\.min_stock_level/);
     assert.match(captured.query, /DATE_ADD\(CURDATE\(\), INTERVAL 30 DAY\)/);
-    assert.deepEqual(captured.params, ['%batch%', '%batch%', '%batch%', 'Tablet']);
+    assert.deepEqual(captured.params, ['%batch%', '%batch%', '%batch%', '%batch%', 'Tablet']);
   } finally {
     loaded.restore();
   }
@@ -246,6 +246,82 @@ test('prescription availability query is read-only and checks expiry', async () 
     await loaded.repository.checkAvailability(3);
     assert.match(capturedQuery, /m\.expiry_date < CURDATE\(\)/);
     assert.doesNotMatch(capturedQuery, /UPDATE|INSERT|DELETE/i);
+  } finally {
+    loaded.restore();
+  }
+});
+
+test('medicine creation uses trigger-safe SQL Server output and returns the created ID', async () => {
+  let captured;
+  const pool = {
+    async execute(query, params) {
+      captured = { query, params };
+      return [[{ insertId: 22 }]];
+    }
+  };
+  const loaded = loadRepository('../src/repositories/medicineRepository', pool);
+
+  try {
+    const id = await loaded.repository.create({
+      name: 'Mapped medicine', quantity: 1, unit_price: 2,
+      expiry_date: '2099-12-31', min_stock_level: 1
+    });
+    assert.equal(id, 22);
+    assert.match(captured.query, /DECLARE @created TABLE/);
+    assert.match(captured.query, /OUTPUT INSERTED\.id INTO @created/);
+    assert.match(captured.query, /SELECT insertId FROM @created/);
+  } finally {
+    loaded.restore();
+  }
+});
+
+test('product catalogue search, category, availability, and pagination are SQL-backed and parameterized', async () => {
+  let captured;
+  const pool = {
+    async execute(query, params) {
+      captured = { query, params };
+      return [[]];
+    }
+  };
+  const loaded = loadRepository('../src/repositories/productRepository', pool);
+
+  try {
+    await loaded.repository.findAll({
+      search: 'P0001',
+      category: 'medicine',
+      availability: 'available',
+      page: 2,
+      limit: 5,
+    });
+    assert.match(captured.query, /FROM dbo\.v_product_catalog pc/);
+    assert.match(captured.query, /pc\.product_code LIKE \?/);
+    assert.match(captured.query, /pc\.category_code = \?/);
+    assert.match(captured.query, /pc\.availability = \?/);
+    assert.match(captured.query, /LIMIT \? OFFSET \?/);
+    assert.deepEqual(captured.params, [
+      '%P0001%', '%P0001%', '%P0001%', '%P0001%',
+      'MEDICINE', 'medicine', 'AVAILABLE', 5, 5,
+    ]);
+  } finally {
+    loaded.restore();
+  }
+});
+
+test('public product lookup reads the canonical catalogue view by permanent product code', async () => {
+  let captured;
+  const pool = {
+    async execute(query, params) {
+      captured = { query, params };
+      return [[{ product_code: 'P0000000001', unit_price: 2500, stock_quantity: 10 }]];
+    }
+  };
+  const loaded = loadRepository('../src/repositories/productRepository', pool);
+
+  try {
+    const product = await loaded.repository.findByCode('P0000000001');
+    assert.equal(product.product_code, 'P0000000001');
+    assert.match(captured.query, /dbo\.v_product_catalog/);
+    assert.deepEqual(captured.params, ['P0000000001']);
   } finally {
     loaded.restore();
   }

@@ -15,7 +15,7 @@ const CreatePurchasePage = () => {
   const [showSuccess, setShowSuccess] = useState(false)
 
   const filteredMedicines = searchMedicine.length >= 2
-    ? medicines.filter(m => m.name.toLowerCase().includes(searchMedicine.toLowerCase()) || m.genericName?.toLowerCase().includes(searchMedicine.toLowerCase())).slice(0, 8)
+    ? medicines.filter(m => m.name.toLowerCase().includes(searchMedicine.toLowerCase()) || m.genericName?.toLowerCase().includes(searchMedicine.toLowerCase()) || m.productCode.toLowerCase().includes(searchMedicine.toLowerCase())).slice(0, 8)
     : []
 
   const addItem = (medicine) => {
@@ -23,7 +23,7 @@ const CreatePurchasePage = () => {
     if (existing) {
       setItems(items.map(i => i.medicineId === medicine.id ? { ...i, quantity: i.quantity + 1, totalCost: (i.quantity + 1) * i.unitCost } : i))
     } else {
-      setItems([...items, { medicineId: medicine.id, medicineName: medicine.name, batchNumber: medicine.batchNumber, quantity: 1, unitCost: medicine.unitPrice, totalCost: medicine.unitPrice }])
+      setItems([...items, { medicineId: medicine.id, productCode: medicine.productCode, medicineName: medicine.name, batchNumber: medicine.batchNumber, quantity: 1, unitCost: medicine.unitPrice, totalCost: medicine.unitPrice }])
     }
     setSearchMedicine('')
   }
@@ -118,7 +118,7 @@ const CreatePurchasePage = () => {
               <div className="card-body">
                 <div className="search-input-wrapper">
                   <span className="search-icon"><Search size={18} /></span>
-                  <input type="text" value={searchMedicine} onChange={(e) => setSearchMedicine(e.target.value)} placeholder="Search medicines by name..." className="form-control" />
+                  <input type="text" value={searchMedicine} onChange={(e) => setSearchMedicine(e.target.value)} placeholder="Search by Product ID or medicine name..." className="form-control" />
                 </div>
                 {filteredMedicines.length > 0 && (
                   <div style={{ marginTop: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', maxHeight: '280px', overflowY: 'auto' }}>
@@ -127,7 +127,7 @@ const CreatePurchasePage = () => {
                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                         <div>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)' }}>{m.name}</div>
-                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Stock: {m.quantity} | {m.batchNumber}</div>
+                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{m.productCode} | Stock: {m.quantity} | {m.batchNumber}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 600, color: 'var(--primary-bright)' }}>{formatLKR(m.unitPrice)}</div></div>
                       </div>
@@ -151,7 +151,7 @@ const CreatePurchasePage = () => {
                       <div key={item.medicineId} style={{ display: 'flex', alignItems: 'center', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-subtle)', gap: 'var(--space-3)' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.medicineName}</div>
-                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{item.batchNumber}</div>
+                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{item.productCode} · {item.batchNumber}</div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                           <div className="qty-control">

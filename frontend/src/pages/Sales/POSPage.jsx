@@ -23,6 +23,7 @@ const POSPage = () => {
       prescriptionHandoffHandled.current = true
       setCart(handoff.prescriptionItems.map(item => ({
         medicineId: item.medicineId, medicineName: item.medicineName,
+        productCode: item.productCode,
         batchNumber: item.batchNumber, quantity: item.quantity,
         unitPrice: item.unitPrice, lineTotal: item.lineTotal,
       })))
@@ -36,7 +37,7 @@ const POSPage = () => {
     if (searchTerm.length < 2) return []
     const q = searchTerm.toLowerCase()
     return medicines.filter(m =>
-      m.name.toLowerCase().includes(q) || m.genericName?.toLowerCase().includes(q) || m.batchNumber?.toLowerCase().includes(q)
+      m.name.toLowerCase().includes(q) || m.genericName?.toLowerCase().includes(q) || m.batchNumber?.toLowerCase().includes(q) || m.productCode.toLowerCase().includes(q)
     ).filter(isMedicineSellable).slice(0, 8)
   }, [medicines, searchTerm])
 
@@ -46,7 +47,7 @@ const POSPage = () => {
       if (existing.quantity >= medicine.quantity) { showToast(`Only ${medicine.quantity} units available`, 'warning'); return }
       setCart(cart.map(i => i.medicineId === medicine.id ? { ...i, quantity: i.quantity + 1, lineTotal: (i.quantity + 1) * i.unitPrice } : i))
     } else {
-      setCart([...cart, { medicineId: medicine.id, medicineName: medicine.name, batchNumber: medicine.batchNumber, quantity: 1, unitPrice: medicine.unitPrice, lineTotal: medicine.unitPrice }])
+      setCart([...cart, { medicineId: medicine.id, productCode: medicine.productCode, medicineName: medicine.name, batchNumber: medicine.batchNumber, quantity: 1, unitPrice: medicine.unitPrice, lineTotal: medicine.unitPrice }])
     }
     setSearchTerm('')
   }
@@ -121,7 +122,7 @@ const POSPage = () => {
                       <div className="pos-search-item-info">
                         <div className="pos-search-item-name">{m.name}</div>
                         <div className="pos-search-item-generic">{m.genericName}</div>
-                        <div className="pos-search-item-meta">Stock: {m.quantity} | {m.batchNumber}</div>
+                        <div className="pos-search-item-meta">{m.productCode} | Stock: {m.quantity} | {m.batchNumber}</div>
                       </div>
                       <div className="pos-search-item-price">
                         <span className="price">{formatLKR(m.unitPrice)}</span>
@@ -149,7 +150,7 @@ const POSPage = () => {
                     <div key={item.medicineId} className="cart-item">
                       <div className="cart-item-info">
                         <div className="cart-item-name">{item.medicineName}</div>
-                        <div className="cart-item-meta">{item.batchNumber} | {formatLKR(item.unitPrice)}/unit</div>
+                        <div className="cart-item-meta">{item.productCode} | {item.batchNumber} | {formatLKR(item.unitPrice)}/unit</div>
                       </div>
                       <div className="cart-item-controls">
                         <div className="qty-control">

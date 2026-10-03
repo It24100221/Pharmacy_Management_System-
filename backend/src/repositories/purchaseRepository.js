@@ -97,6 +97,7 @@ class PurchaseRepository {
         pi.id,
         pi.purchase_id,
         pi.medicine_id,
+        pr.product_code,
         m.name AS medicine_name,
         m.batch_number,
         pi.quantity,
@@ -104,6 +105,7 @@ class PurchaseRepository {
         pi.total_cost
       FROM purchase_items pi
       LEFT JOIN medicines m ON pi.medicine_id = m.id
+      LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE pi.purchase_id = ?
       ORDER BY pi.id
     `;

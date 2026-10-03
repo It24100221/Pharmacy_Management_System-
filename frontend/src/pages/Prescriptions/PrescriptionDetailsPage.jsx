@@ -42,7 +42,7 @@ const PrescriptionDetailsPage = () => {
         return med && med.quantity >= item.quantity && med.expiryStatus !== 'expired'
       })
       .map(item => ({
-        medicineId: item.medicine_id, medicineName: item.medicine_name,
+        medicineId: item.medicine_id, productCode: item.product_code, medicineName: item.medicine_name,
         batchNumber: item.batch_number, unitPrice: item.unit_price,
         quantity: item.quantity, lineTotal: item.unit_price * item.quantity,
       }))
@@ -136,6 +136,7 @@ const PrescriptionDetailsPage = () => {
                       <td>
                         <span style={{ fontWeight: 600 }}>{item.medicine_name}</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: '2px' }}>
+                          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{item.product_code}</span>
                           {avail === 'available' && <span className="badge badge-available" style={{ fontSize: '10px' }}><CheckCircle size={10} /> AVAILABLE</span>}
                           {avail === 'insufficient' && <span className="badge badge-insufficient" style={{ fontSize: '10px' }}><AlertTriangle size={10} /> INSUFFICIENT</span>}
                           {avail === 'out_of_stock' && <span className="badge badge-out-of-stock" style={{ fontSize: '10px' }}><AlertCircle size={10} /> OUT OF STOCK</span>}

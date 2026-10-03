@@ -24,7 +24,7 @@ const CreatePrescriptionPage = () => {
 
   const addItem = (medicine) => {
     if (!items.find(i => i.medicineId === medicine.id)) {
-      setItems([...items, { medicineId: medicine.id, medicineName: medicine.name, genericName: medicine.genericName, batchNumber: medicine.batchNumber, currentStock: medicine.quantity, unitPrice: medicine.unitPrice, quantity: 1, instructions: '', availability: medicine.quantity > 0 ? 'available' : 'out_of_stock' }])
+      setItems([...items, { medicineId: medicine.id, productCode: medicine.productCode, medicineName: medicine.name, genericName: medicine.genericName, batchNumber: medicine.batchNumber, currentStock: medicine.quantity, unitPrice: medicine.unitPrice, quantity: 1, instructions: '', availability: medicine.quantity > 0 ? 'available' : 'out_of_stock' }])
       setAvailabilityChecked(false)
     }
     setSearchMedicine('')
@@ -66,7 +66,7 @@ const CreatePrescriptionPage = () => {
     if (!prescriptionDate) { showToast('Please select a prescription date', 'error'); return }
     const customer = customers.find(c => c.id === parseInt(selectedCustomer, 10))
     if (!customer) { showToast('The selected customer could not be found', 'error'); return }
-    const billingItems = items.filter(i => i.availability === 'available').map(i => ({ medicineId: i.medicineId, medicineName: i.medicineName, batchNumber: i.batchNumber, unitPrice: i.unitPrice, quantity: i.quantity, lineTotal: i.unitPrice * i.quantity }))
+    const billingItems = items.filter(i => i.availability === 'available').map(i => ({ medicineId: i.medicineId, productCode: i.productCode, medicineName: i.medicineName, batchNumber: i.batchNumber, unitPrice: i.unitPrice, quantity: i.quantity, lineTotal: i.unitPrice * i.quantity }))
     if (billingItems.length === 0) { showToast('No available items to send to billing', 'error'); return }
     const prescriptionData = { customer_id: parseInt(selectedCustomer, 10), customer_name: customer ? `${customer.first_name} ${customer.last_name}` : 'Unknown', prescription_date: prescriptionDate, instructions, items: items.map(i => ({ medicine_id: i.medicineId, medicine_name: i.medicineName, generic_name: i.genericName, batch_number: i.batchNumber, quantity: i.quantity, unit_price: i.unitPrice, instructions: i.instructions })) }
     const result = await addPrescription(prescriptionData)
@@ -156,7 +156,7 @@ const CreatePrescriptionPage = () => {
                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                         <div>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)' }}>{m.name}</div>
-                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{m.genericName} | Stock: {m.quantity}</div>
+                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{m.productCode} · {m.genericName} | Stock: {m.quantity}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 600, color: 'var(--primary-bright)', fontSize: 'var(--font-size-sm)' }}>{formatLKR(m.unitPrice)}</div></div>
                       </div>
@@ -181,7 +181,7 @@ const CreatePrescriptionPage = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)' }}>{item.medicineName}</div>
-                            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Stock: {item.currentStock} | {formatLKR(item.unitPrice)}/unit</div>
+                            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{item.productCode} · Stock: {item.currentStock} | {formatLKR(item.unitPrice)}/unit</div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                             <div className="qty-control">

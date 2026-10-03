@@ -16,6 +16,7 @@ const MedicineListPage = () => {
         const q = search.toLowerCase()
         if (
           !m.name.toLowerCase().includes(q) &&
+          !m.productCode.toLowerCase().includes(q) &&
           !m.genericName.toLowerCase().includes(q) &&
           !m.category.toLowerCase().includes(q) &&
           !m.batchNumber.toLowerCase().includes(q)
@@ -95,7 +96,7 @@ const MedicineListPage = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, generic name, category, or batch..."
+              placeholder="Search by Product ID, name, generic name, category, or batch..."
               className="form-control"
             />
           </div>
@@ -137,7 +138,7 @@ const MedicineListPage = () => {
               <tbody>
                 {filteredMedicines.map((medicine) => (
                   <tr key={medicine.id}>
-                    <td><span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{medicine.name}</span></td>
+                    <td><span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{medicine.name}</span><div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{medicine.productCode}</div></td>
                     <td style={{ color: 'var(--text-secondary)' }}>{medicine.genericName}</td>
                     <td style={{ color: 'var(--text-secondary)' }}>{medicine.category}</td>
                     <td>

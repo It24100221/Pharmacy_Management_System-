@@ -7,6 +7,7 @@ class MedicineRepository {
     let query = `
       SELECT
         m.id,
+        pr.product_code,
         m.name,
         m.description,
         m.generic_name,
@@ -30,6 +31,7 @@ class MedicineRepository {
           ELSE 'valid'
         END AS expiry_status
       FROM medicines m
+      LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE 1=1
     `;
 
@@ -37,9 +39,9 @@ class MedicineRepository {
 
     // Search filter
     if (filters.search) {
-      query += ` AND (m.name LIKE ? OR m.generic_name LIKE ? OR m.batch_number LIKE ?)`;
+      query += ` AND (m.name LIKE ? OR m.generic_name LIKE ? OR m.batch_number LIKE ? OR pr.product_code LIKE ?)`;
       const searchTerm = `%${filters.search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     // Category filter
@@ -89,6 +91,7 @@ class MedicineRepository {
     const query = `
       SELECT
         m.id,
+        pr.product_code,
         m.name,
         m.description,
         m.generic_name,
@@ -112,6 +115,7 @@ class MedicineRepository {
           ELSE 'valid'
         END AS expiry_status
       FROM medicines m
+      LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE m.id = ?
     `;
 
@@ -122,11 +126,13 @@ class MedicineRepository {
   // Create new medicine
   async create(medicineData) {
     const query = `
+      DECLARE @created TABLE (insertId INT);
       INSERT INTO medicines (
         name, description, generic_name, manufacturer, category,
         batch_number, quantity, unit_price, expiry_date, min_stock_level
-      ) OUTPUT INSERTED.id AS insertId
+      ) OUTPUT INSERTED.id INTO @created(insertId)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      SELECT insertId FROM @created;
     `;
 
     const values = [
@@ -142,8 +148,8 @@ class MedicineRepository {
       medicineData.min_stock_level ?? 10
     ];
 
-    const [result] = await pool.execute(query, values);
-    return result.insertId;
+    const [rows] = await pool.execute(query, values);
+    return rows[0].insertId;
   }
 
   // Update medicine
@@ -175,11 +181,13 @@ class MedicineRepository {
     const query = `
       SELECT
         m.id,
+        pr.product_code,
         m.name,
         m.quantity,
         m.min_stock_level,
         (m.min_stock_level - m.quantity) AS shortage
       FROM medicines m
+      LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE m.quantity > 0 AND m.quantity <= m.min_stock_level
       ORDER BY m.quantity ASC
     `;
@@ -193,6 +201,7 @@ class MedicineRepository {
     let query = `
       SELECT
         m.id,
+        pr.product_code,
         m.name,
         m.expiry_date,
         m.quantity,
@@ -203,6 +212,7 @@ class MedicineRepository {
         END AS expiry_status,
         DATEDIFF(m.expiry_date, CURDATE()) AS days_until_expiry
       FROM medicines m
+      LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE 1=1
     `;
 
@@ -220,13 +230,13 @@ class MedicineRepository {
 
   // Get total count
   async getCount(filters = {}) {
-    let query = `SELECT COUNT(*) as total FROM medicines m WHERE 1=1`;
+    let query = `SELECT COUNT(*) as total FROM medicines m LEFT JOIN products pr ON pr.medicine_id = m.id WHERE 1=1`;
     const params = [];
 
     if (filters.search) {
-      query += ` AND (m.name LIKE ? OR m.generic_name LIKE ? OR m.batch_number LIKE ?)`;
+      query += ` AND (m.name LIKE ? OR m.generic_name LIKE ? OR m.batch_number LIKE ? OR pr.product_code LIKE ?)`;
       const searchTerm = `%${filters.search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     if (filters.category) {

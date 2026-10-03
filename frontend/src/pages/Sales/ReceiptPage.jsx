@@ -74,7 +74,7 @@ const ReceiptPage = () => {
               <div key={idx} className="receipt-item">
                 <div style={{ flex: 1 }}>
                   <div className="receipt-item-name">{item.medicine_name}</div>
-                  <div className="receipt-item-meta">{item.batch_number} | Qty: {item.quantity} x {formatLKR(item.unit_price)}</div>
+                  <div className="receipt-item-meta">{item.product_code} | {item.batch_number} | Qty: {item.quantity} x {formatLKR(item.unit_price)}</div>
                 </div>
                 <div className="receipt-item-price">{formatLKR(item.line_total)}</div>
               </div>

@@ -164,6 +164,7 @@ class SalesController {
       pharmacy_name: 'Senevirathna Medical Pharmacy',
       pharmacy_address: 'Your Pharmacy Address',
       items: sale.items.map(item => ({
+        product_code: item.product_code,
         name: item.medicine_name,
         batch_number: item.batch_number,
         quantity: item.quantity,

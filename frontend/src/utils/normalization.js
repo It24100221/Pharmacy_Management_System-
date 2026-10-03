@@ -28,6 +28,7 @@ export function normalizeMedicine(medicine = {}) {
   return {
     ...medicine,
     id: Number(medicine.id),
+    productCode: medicine.product_code ?? medicine.productCode ?? '',
     quantity,
     stockStatus: medicine.stock_status || computeStockStatus(quantity, minStockLevel),
     expiryStatus: medicine.expiry_status || getExpiryStatus(expiryDate),
@@ -67,6 +68,7 @@ export function normalizeSale(sale = {}) {
 
     return {
       ...item,
+      product_code: item.product_code ?? item.productCode ?? '',
       medicine_id: Number.isFinite(medicineId) ? medicineId : null,
       medicine_name: item.medicine_name ?? item.medicineName ?? item.name ?? 'Medicine',
       batch_number: item.batch_number ?? item.batchNumber ?? '',
@@ -101,6 +103,7 @@ export function normalizePrescription(prescription = {}) {
     status: prescription.status || 'active',
     items: (prescription.items || []).map(item => ({
       ...item,
+      product_code: item.product_code ?? item.productCode ?? '',
       medicine_id: Number(item.medicine_id ?? item.medicineId),
       medicine_name: item.medicine_name ?? item.medicineName ?? item.name ?? 'Medicine',
       batch_number: item.batch_number ?? item.batchNumber ?? '',
@@ -108,5 +111,21 @@ export function normalizePrescription(prescription = {}) {
       unit_price: Number(item.unit_price ?? item.unitPrice ?? 0),
       instructions: item.instructions ?? item.item_instructions ?? '',
     })),
+  }
+}
+
+export function normalizeCatalogProduct(product = {}) {
+  return {
+    productId: Number(product.product_id),
+    productCode: String(product.product_code || ''),
+    name: String(product.name || ''),
+    description: String(product.description || ''),
+    categoryCode: String(product.category_code || ''),
+    category: String(product.category || ''),
+    price: Number(product.price ?? 0),
+    stockQuantity: Number(product.stock_quantity ?? 0),
+    availability: String(product.availability || 'OUT_OF_STOCK'),
+    prescriptionRequired: Boolean(product.prescription_required),
+    image: product.image_url || null,
   }
 }
