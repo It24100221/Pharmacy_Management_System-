@@ -5,6 +5,10 @@ const customerRepository = require('../repositories/customerRepository');
 const medicineRepository = require('../repositories/medicineRepository');
 
 class PrescriptionController {
+  canAccessPrescription(req, prescription) {
+    return req.user.role !== 'CUSTOMER' || prescription.customer_id === req.user.customerId;
+  }
+
   uploadPrescription = asyncHandler(async (req, res) => {
     const { image, doctorName, notes } = req.body;
     if (!req.user?.customerId || !image) return res.status(400).json({ success: false, message: 'A prescription image is required' });
@@ -20,6 +24,11 @@ class PrescriptionController {
     const prescriptions = await prescriptionRepository.findUploadsByCustomer(customerId);
     res.json({ success: true, data: { prescriptions } });
   });
+
+  getOwnUploads = asyncHandler(async (req, res) => {
+    const prescriptions = await prescriptionRepository.findUploadsByCustomer(req.user.customerId);
+    res.json({ success: true, data: { prescriptions } });
+  });
   // GET /api/prescriptions
   // GET /api/prescriptions?search=...&start_date=...&end_date=...
   getAllPrescriptions = asyncHandler(async (req, res) => {
@@ -33,6 +42,8 @@ class PrescriptionController {
       limit: limit,
       pagination: pagination === 'false' ? false : true
     };
+
+    if (req.user.role === 'CUSTOMER') filters.customer_id = req.user.customerId;
 
     const prescriptions = await prescriptionRepository.findAll(filters);
     const total = await prescriptionRepository.getCount(filters);
@@ -75,6 +86,10 @@ class PrescriptionController {
         success: false,
         message: 'Prescription not found'
       });
+    }
+
+    if (!this.canAccessPrescription(req, prescription)) {
+      return res.status(403).json({ success: false, message: 'You can only view your own prescriptions' });
     }
 
     res.json({
@@ -131,6 +146,10 @@ class PrescriptionController {
         success: false,
         message: 'Prescription not found'
       });
+    }
+
+    if (!this.canAccessPrescription(req, prescription)) {
+      return res.status(403).json({ success: false, message: 'You can only view your own prescriptions' });
     }
 
     // Check availability

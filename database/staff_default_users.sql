@@ -60,7 +60,7 @@ INSERT INTO @staff VALUES
     (N'pharmacist', N'$2a$12$H6KcerPt46iKr/ZPpKQKKOH74Wg0UhdUN9v9oFFWPGVNedyptfQgu', N'Lead Pharmacist', N'PHARMACIST', N'pharmacist@senevirathna.local', NULL),
     (N'inventory', N'$2a$12$E9CLQ67F6SH4t9m.wNWGy.sfil57HgjzlVX8ub0ZC.3OI7BWKl1WW', N'Inventory Coordinator', N'INVENTORY', N'inventory@senevirathna.local', NULL),
     (N'sales', N'$2a$12$Q9GTxb14dD.ANc.9GUvope/2aoAu.71WxUhQ2sbACL8vIVueQ2YS6', N'Sales Coordinator', N'SALES', N'sales@senevirathna.local', NULL),
-    (N'supplier', N'$2a$12$h2usnYNG8D9cB5hAgBnh4ucbkxtOo4Wb4/Zy1n6sJO/MrOePu8qtG', N'Supplier Coordinator', N'SUPPLIER', N'Supply@gmail.com', NULL);
+    (N'supplier', N'$2a$12$CboP72aL.WG0.sXl00a5B.6/8XyWb.JABaSU0o7igy2Lr0gSEeF3e', N'Supplier Coordinator', N'SUPPLIER', N'Supply@gmail.com', NULL);
 
 INSERT INTO users (username, password, role)
 SELECT s.username, s.password_hash, s.staff_role

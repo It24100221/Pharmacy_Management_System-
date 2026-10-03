@@ -9,6 +9,13 @@ const api = axios.create({
   timeout: 30000,
 })
 
+export const classifyApiError = error => {
+  if (!error?.response) return 'API_UNAVAILABLE'
+  if (error.response.status === 401) return 'UNAUTHENTICATED'
+  if (error.response.status === 403) return 'FORBIDDEN'
+  return 'API_ERROR'
+}
+
 // Request interceptor for logging
 api.interceptors.request.use(
   (config) => {
@@ -28,6 +35,7 @@ api.interceptors.response.use(
     return response
   },
   (error) => {
+    error.kind = classifyApiError(error)
     if (error.response) {
       // Server responded with error status
       console.error('API Error:', error.response.data?.message || error.message)
@@ -37,6 +45,9 @@ api.interceptors.response.use(
     } else {
       // Error in setting up request
       console.error('API Error:', error.message)
+    }
+    if (error.kind === 'UNAUTHENTICATED' && error.config?.headers?.Authorization && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('pharmacy:auth-invalid'))
     }
     return Promise.reject(error)
   }

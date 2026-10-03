@@ -1,6 +1,19 @@
 const { pool } = require('../config/database')
 
 class AuthRepository {
+  async findUserById(userId) {
+    const [rows] = await pool.execute(`
+      SELECT TOP 1 u.user_id, u.username, u.password, u.role,
+        c.id AS customer_id, c.first_name, c.last_name, c.email,
+        s.staff_id, s.staff_name, s.email AS staff_email, s.phone AS staff_phone
+      FROM users u
+      LEFT JOIN customers c ON c.user_id = u.user_id
+      LEFT JOIN staff s ON s.user_id = u.user_id
+      WHERE u.user_id = ?
+    `, [userId])
+    return rows[0] || null
+  }
+
   async findUser(username, roles = []) {
     const roleClause = roles.length ? ` AND u.role IN (${roles.map(() => '?').join(', ')})` : ''
     const [rows] = await pool.execute(`

@@ -5,44 +5,52 @@ import {
   ClipboardPlus, Plus, AlertTriangle, Clock, Package,
   Menu, ChevronDown, ArrowRight
 } from '../common/Icons.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
+import authService from '../../services/authService.js'
 
 const navModules = [
   {
     label: 'Inventory',
     icon: Pill,
+    roles: ['ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES'],
     children: [
-      { label: 'Medicines', path: '/medicines', icon: Pill },
-      { label: 'Add Medicine', path: '/medicines/add', icon: Plus },
-      { label: 'Low Stock', path: '/medicines/low-stock', icon: AlertTriangle },
-      { label: 'Expiry Monitoring', path: '/medicines/expiry', icon: Clock },
+      { label: 'Medicines', path: '/medicines', icon: Pill, roles: ['ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES'] },
+      { label: 'Add Medicine', path: '/medicines/add', icon: Plus, roles: ['ADMIN', 'INVENTORY'] },
+      { label: 'Low Stock', path: '/medicines/low-stock', icon: AlertTriangle, roles: ['ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES'] },
+      { label: 'Expiry Monitoring', path: '/medicines/expiry', icon: Clock, roles: ['ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES'] },
     ]
   },
   {
     label: 'Sales & Billing',
     path: '/sales',
     icon: ShoppingCart,
+    roles: ['ADMIN', 'SALES'],
   },
   {
     label: 'Suppliers',
     icon: Building2,
+    roles: ['ADMIN', 'INVENTORY', 'SUPPLIER'],
     children: [
-      { label: 'Suppliers', path: '/suppliers', icon: Building2 },
-      { label: 'Add Supplier', path: '/suppliers/add', icon: Plus },
-      { label: 'Receive Stock', path: '/purchases', icon: Package },
+      { label: 'Suppliers', path: '/suppliers', icon: Building2, roles: ['ADMIN', 'INVENTORY', 'SUPPLIER'] },
+      { label: 'Add Supplier', path: '/suppliers/add', icon: Plus, roles: ['ADMIN', 'INVENTORY'] },
+      { label: 'Receive Stock', path: '/purchases', icon: Package, roles: ['ADMIN', 'INVENTORY'] },
     ]
   },
   {
     label: 'Customers',
     icon: Users,
+    roles: ['ADMIN', 'PHARMACIST', 'SALES'],
     children: [
-      { label: 'Customers', path: '/customers', icon: Users },
-      { label: 'Add Customer', path: '/customers/add', icon: Plus },
-      { label: 'Create Prescription', path: '/prescriptions/create', icon: ClipboardPlus },
+      { label: 'Customers', path: '/customers', icon: Users, roles: ['ADMIN', 'PHARMACIST', 'SALES'] },
+      { label: 'Add Customer', path: '/customers/add', icon: Plus, roles: ['ADMIN', 'PHARMACIST'] },
+      { label: 'Create Prescription', path: '/prescriptions/create', icon: ClipboardPlus, roles: ['ADMIN', 'PHARMACIST'] },
     ]
   },
 ]
 
 const TopNav = ({ onMobileOpen }) => {
+  const { session } = useAuth()
+  const role = session?.role
   const location = useLocation()
   const [openDropdown, setOpenDropdown] = useState(null)
   const dropdownRefs = useRef({})
@@ -83,7 +91,7 @@ const TopNav = ({ onMobileOpen }) => {
   return (
     <nav className="site-nav" aria-label="Main navigation">
       <div className="site-nav-inner">
-        <Link to="/" className="nav-brand">
+        <Link to={authService.getDashboardPath(role)} className="nav-brand">
           <div className="nav-brand-icon">
             <Plus size={30} strokeWidth={3} />
           </div>
@@ -94,18 +102,12 @@ const TopNav = ({ onMobileOpen }) => {
         </Link>
 
         <div className="nav-links">
-          <Link
-            to="/"
-            className={`nav-link-item ${location.pathname === '/' ? 'active' : ''}`}
-          >
-            Home
-          </Link>
-          <a href="/#about" className="nav-link-item">About</a>
-          <Link to="/pharmacy-items" className={`nav-link-item ${isItemActive('/pharmacy-items') ? 'active' : ''}`}>Pharmacy Items</Link>
+          <Link to={authService.getDashboardPath(role)} className="nav-link-item">Dashboard</Link>
 
-          {navModules.map((mod) => {
+          {navModules.filter(mod => mod.roles.includes(role)).map((mod) => {
             if (mod.children) {
-              const isActive = mod.children.some(c => isItemActive(c.path))
+              const children = mod.children.filter(child => child.roles.includes(role))
+              const isActive = children.some(c => isItemActive(c.path))
               return (
                 <div
                   key={mod.label}
@@ -122,7 +124,7 @@ const TopNav = ({ onMobileOpen }) => {
                     <ChevronDown size={14} className="dropdown-arrow" />
                   </button>
                   <div className="nav-dropdown-menu" id={`nav-${mod.label.toLowerCase()}`} hidden={openDropdown !== mod.label}>
-                    {mod.children.map((child) => (
+                    {children.map((child) => (
                       <Link
                         key={child.path}
                         to={child.path}
@@ -150,11 +152,7 @@ const TopNav = ({ onMobileOpen }) => {
           })}
         </div>
 
-        <div className="nav-auth-actions">
-          <Link to="/customer-login" className="nav-login-button">Login</Link>
-          <Link to="/customer-register" className="nav-register-button">Register</Link>
-        </div>
-        <Link to="/sales" className="nav-sale-button">New Sale <ArrowRight size={16} /></Link>
+        {['ADMIN', 'SALES'].includes(role) && <Link to="/sales" className="nav-sale-button">New Sale <ArrowRight size={16} /></Link>}
         <button type="button" className="mobile-nav-toggle" onClick={onMobileOpen} aria-label="Open navigation" aria-haspopup="dialog">
           <Menu size={22} />
         </button>

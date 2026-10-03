@@ -4,6 +4,8 @@ import {
   LayoutDashboard, Pill, ShoppingCart, Building2, Users,
   ClipboardPlus, Plus, AlertTriangle, Clock, Package, X
 } from '../common/Icons.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
+import authService from '../../services/authService.js'
 
 const mobileNavSections = [
   {
@@ -50,8 +52,23 @@ const customerNavSections = [
   { title: 'Account', items: [{ label: 'Login', path: '/login', icon: Users }, { label: 'Register', path: '/register', icon: Plus }] },
 ]
 
+const routeRoles = {
+  '/medicines': ['ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES'],
+  '/medicines/add': ['ADMIN', 'INVENTORY'],
+  '/medicines/low-stock': ['ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES'],
+  '/medicines/expiry': ['ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES'],
+  '/sales': ['ADMIN', 'SALES'],
+  '/suppliers': ['ADMIN', 'INVENTORY', 'SUPPLIER'],
+  '/suppliers/add': ['ADMIN', 'INVENTORY'],
+  '/purchases': ['ADMIN', 'INVENTORY'],
+  '/customers': ['ADMIN', 'PHARMACIST', 'SALES'],
+  '/customers/add': ['ADMIN', 'PHARMACIST'],
+  '/prescriptions/create': ['ADMIN', 'PHARMACIST'],
+}
+
 const MobileDrawer = ({ isOpen, onClose, publicOnly = false }) => {
   const location = useLocation()
+  const { session } = useAuth()
   const drawerRef = useRef(null)
 
   useEffect(() => {
@@ -108,7 +125,12 @@ const MobileDrawer = ({ isOpen, onClose, publicOnly = false }) => {
         </div>
 
         <div className="mobile-drawer-nav">
-          {(publicOnly ? customerNavSections : mobileNavSections).map((section) => (
+          {(publicOnly ? customerNavSections : mobileNavSections.map(section => ({
+            ...section,
+            items: section.items
+              .map(item => item.path === '/' ? { ...item, path: authService.getDashboardPath(session?.role) } : item)
+              .filter(item => !routeRoles[item.path] || routeRoles[item.path].includes(session?.role)),
+          })).filter(section => section.items.length)).map((section) => (
             <div key={section.title}>
               <div className="mobile-nav-section-title">{section.title}</div>
               {section.items.map((item) => (

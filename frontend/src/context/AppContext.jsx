@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
-import { mockMedicines } from '../data/mockMedicines.js'
-import { mockSuppliers } from '../data/mockSuppliers.js'
-import { mockPrescriptions } from '../data/mockPrescriptions.js'
-import { mockSales } from '../data/mockSales.js'
 import { medicineService, supplierService, customerService, purchaseService, prescriptionService, salesService } from '../services/apiService.js'
+import { useAuth } from './AuthContext.jsx'
+import { AUTH_STATES, DATA_SCOPES } from '../config/authorization.js'
 import {
   computeStockStatus,
   normalizeCustomer,
@@ -15,37 +13,20 @@ import {
 
 const AppContext = createContext(null)
 
-const loadState = (key, defaultValue) => {
-  try {
-    const saved = localStorage.getItem(key)
-    return saved ? JSON.parse(saved) : defaultValue
-  } catch {
-    return defaultValue
-  }
-}
-
-// Seed activity data
-const defaultActivity = [
-  { id: 1, type: 'sale', title: 'Sale completed — Receipt #SAL-1001', time: new Date(Date.now() - 3600000 * 2).toISOString(), icon: 'receipt' },
-  { id: 2, type: 'stock', title: 'Stock received for Amoxicillin 500mg', time: new Date(Date.now() - 3600000 * 5).toISOString(), icon: 'package' },
-  { id: 3, type: 'prescription', title: 'Prescription created for Kamal Perera', time: new Date(Date.now() - 3600000 * 8).toISOString(), icon: 'clipboard' },
-  { id: 4, type: 'medicine', title: 'Medicine details updated — Cetirizine 10mg', time: new Date(Date.now() - 86400000).toISOString(), icon: 'pencil' },
-  { id: 5, type: 'customer', title: 'New customer registered — Nimali Abeykoon', time: new Date(Date.now() - 86400000 * 2).toISOString(), icon: 'user' },
-]
-
 const initialState = {
-  medicines: loadState('pharmacy_medicines', mockMedicines).map(normalizeMedicine),
-  suppliers: loadState('pharmacy_suppliers', mockSuppliers).map(normalizeSupplier),
+  medicines: [],
+  suppliers: [],
   customers: [],
-  prescriptions: loadState('pharmacy_prescriptions', mockPrescriptions).map(normalizePrescription),
-  sales: loadState('pharmacy_sales', mockSales).map(normalizeSale),
-  activities: loadState('pharmacy_activities', defaultActivity),
+  prescriptions: [],
+  sales: [],
+  activities: [],
   toasts: [],
   loading: true,
   apiConnected: false,
+  accessStatus: AUTH_STATES.INITIALIZING,
 }
 
-let nextActivityId = loadState('pharmacy_activity_next_id', 6)
+let nextActivityId = 1
 
 function appReducer(state, action) {
   switch (action.type) {
@@ -54,6 +35,10 @@ function appReducer(state, action) {
       return { ...state, ...action.payload, loading: false }
     case 'SET_API_CONNECTED':
       return { ...state, apiConnected: action.payload }
+    case 'SET_ACCESS_STATUS':
+      return { ...state, accessStatus: action.payload }
+    case 'RESET_AUTH_STATE':
+      return { ...initialState, loading: false, accessStatus: action.payload || AUTH_STATES.UNAUTHENTICATED }
 
     // ============ MEDICINES ============
     case 'SET_MEDICINES':
@@ -140,76 +125,61 @@ function addActivity(activities, { type, title, icon }) {
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(appReducer, initialState)
   const apiAvailableRef = useRef(true)
+  const { session, status: authStatus } = useAuth()
 
-  // Persist to localStorage (for offline fallback)
-  useEffect(() => { localStorage.setItem('pharmacy_medicines', JSON.stringify(state.medicines)) }, [state.medicines])
-  useEffect(() => { localStorage.setItem('pharmacy_suppliers', JSON.stringify(state.suppliers)) }, [state.suppliers])
-  useEffect(() => { localStorage.removeItem('pharmacy_customers') }, [])
-  useEffect(() => { localStorage.setItem('pharmacy_prescriptions', JSON.stringify(state.prescriptions)) }, [state.prescriptions])
-  useEffect(() => { localStorage.setItem('pharmacy_sales', JSON.stringify(state.sales)) }, [state.sales])
-  useEffect(() => { localStorage.setItem('pharmacy_activities', JSON.stringify(state.activities)) }, [state.activities])
-  useEffect(() => { localStorage.setItem('pharmacy_activity_next_id', JSON.stringify(nextActivityId)) }, [state.activities])
-
-  // Fetch all data from API on mount
+  // Load only the protected datasets authorized for the authenticated role.
   const loadInitialData = useCallback(async () => {
-    try {
-      const [medRes, supRes, custRes, prescRes, salesRes] = await Promise.allSettled([
-        medicineService.getAll({ pagination: 'false' }),
-        supplierService.getAll({ pagination: 'false' }),
-        customerService.getAll({ pagination: 'false' }),
-        prescriptionService.getAll({ pagination: 'false' }),
-        salesService.getAll({ pagination: 'false' }),
-      ])
-
-      const loadData = {}
-
-      let successfulRequests = 0
-
-      if (medRes.status === 'fulfilled' && medRes.value?.success) {
-        const medData = medRes.value.data
-        const medicines = Array.isArray(medData) ? medData : (medData.medicines || [])
-        loadData.medicines = medicines.map(normalizeMedicine)
-        successfulRequests += 1
-      }
-
-      if (supRes.status === 'fulfilled' && supRes.value?.success) {
-        const supData = supRes.value.data
-        const suppliers = Array.isArray(supData) ? supData : (supData.suppliers || [])
-        loadData.suppliers = suppliers.map(normalizeSupplier)
-        successfulRequests += 1
-      }
-
-      if (custRes.status === 'fulfilled' && custRes.value?.success) {
-        const custData = custRes.value.data
-        const customers = Array.isArray(custData) ? custData : (custData.customers || [])
-        loadData.customers = customers.map(normalizeCustomer)
-        successfulRequests += 1
-      }
-
-      if (prescRes.status === 'fulfilled' && prescRes.value?.success) {
-        const prescData = prescRes.value.data
-        const prescriptions = Array.isArray(prescData) ? prescData : (prescData.prescriptions || [])
-        loadData.prescriptions = prescriptions.map(normalizePrescription)
-        successfulRequests += 1
-      }
-
-      if (salesRes.status === 'fulfilled' && salesRes.value?.success) {
-        const salesData = salesRes.value.data
-        const sales = Array.isArray(salesData) ? salesData : (salesData.sales || [])
-        loadData.sales = sales.map(normalizeSale)
-        successfulRequests += 1
-      }
-
-      apiAvailableRef.current = successfulRequests > 0
-      dispatch({ type: 'SET_API_CONNECTED', payload: successfulRequests > 0 })
-      dispatch({ type: 'SET_DATA', payload: loadData })
-    } catch (error) {
-      console.warn('API unavailable, using local data:', error.message)
-      apiAvailableRef.current = false
-      dispatch({ type: 'SET_API_CONNECTED', payload: false })
-      dispatch({ type: 'SET_DATA', payload: {} })
+    if (authStatus !== AUTH_STATES.AUTHENTICATED || !session) {
+      apiAvailableRef.current = authStatus !== AUTH_STATES.API_UNAVAILABLE
+      dispatch({ type: 'RESET_AUTH_STATE', payload: authStatus })
+      return
     }
-  }, [])
+
+    dispatch({ type: 'RESET_AUTH_STATE', payload: AUTH_STATES.INITIALIZING })
+    const scopes = DATA_SCOPES[session.role] || []
+    if (!scopes.length) {
+      apiAvailableRef.current = true
+      dispatch({ type: 'SET_API_CONNECTED', payload: true })
+      dispatch({ type: 'SET_DATA', payload: { accessStatus: AUTH_STATES.AUTHENTICATED } })
+      return
+    }
+
+    const loaders = {
+      medicines: () => medicineService.getAll({ pagination: 'false' }),
+      suppliers: () => supplierService.getAll({ pagination: 'false' }),
+      customers: () => customerService.getAll({ pagination: 'false' }),
+      prescriptions: () => prescriptionService.getAll({ pagination: 'false' }),
+      sales: () => salesService.getAll({ pagination: 'false' }),
+    }
+    const normalizers = {
+      medicines: data => (Array.isArray(data) ? data : data.medicines || []).map(normalizeMedicine),
+      suppliers: data => (Array.isArray(data) ? data : data.suppliers || []).map(normalizeSupplier),
+      customers: data => (Array.isArray(data) ? data : data.customers || []).map(normalizeCustomer),
+      prescriptions: data => (Array.isArray(data) ? data : data.prescriptions || []).map(normalizePrescription),
+      sales: data => (Array.isArray(data) ? data : data.sales || []).map(normalizeSale),
+    }
+
+    const results = await Promise.allSettled(scopes.map(scope => loaders[scope]()))
+    const loadData = {}
+    let accessStatus = AUTH_STATES.AUTHENTICATED
+    let successfulRequests = 0
+
+    results.forEach((result, index) => {
+      const scope = scopes[index]
+      if (result.status === 'fulfilled' && result.value?.success) {
+        loadData[scope] = normalizers[scope](result.value.data)
+        successfulRequests += 1
+      } else if (result.status === 'rejected') {
+        if (result.reason?.kind === AUTH_STATES.FORBIDDEN) accessStatus = AUTH_STATES.FORBIDDEN
+        else if (result.reason?.kind === AUTH_STATES.UNAUTHENTICATED) accessStatus = AUTH_STATES.UNAUTHENTICATED
+        else if (accessStatus === AUTH_STATES.AUTHENTICATED) accessStatus = AUTH_STATES.API_UNAVAILABLE
+      }
+    })
+
+    apiAvailableRef.current = accessStatus !== AUTH_STATES.API_UNAVAILABLE
+    dispatch({ type: 'SET_API_CONNECTED', payload: successfulRequests > 0 })
+    dispatch({ type: 'SET_DATA', payload: { ...loadData, accessStatus } })
+  }, [authStatus, session])
 
   useEffect(() => {
     loadInitialData()
@@ -224,9 +194,18 @@ export function AppProvider({ children }) {
   }, [])
 
   const markApiUnavailable = useCallback((error) => {
+    if (error?.kind === AUTH_STATES.UNAUTHENTICATED || error?.response?.status === 401) {
+      dispatch({ type: 'SET_ACCESS_STATUS', payload: AUTH_STATES.UNAUTHENTICATED })
+      return false
+    }
+    if (error?.kind === AUTH_STATES.FORBIDDEN || error?.response?.status === 403) {
+      dispatch({ type: 'SET_ACCESS_STATUS', payload: AUTH_STATES.FORBIDDEN })
+      return false
+    }
     if (error?.response) return false
     apiAvailableRef.current = false
     dispatch({ type: 'SET_API_CONNECTED', payload: false })
+    dispatch({ type: 'SET_ACCESS_STATUS', payload: AUTH_STATES.API_UNAVAILABLE })
     return true
   }, [])
 
@@ -406,35 +385,30 @@ export function AppProvider({ children }) {
       : { success: false, error: 'Prescription not found' }
   }, [markApiUnavailable, state.prescriptions])
 
-  const preparePrescriptionForBilling = useCallback(async (id, fallbackData) => {
-    if (apiAvailableRef.current) {
-      try {
-        const res = await prescriptionService.sendToBilling(id)
-        if (res.success) {
-          return {
-            success: true,
-            data: {
-              customer: res.data.customer,
-              items: (res.data.items || []).map(item => ({
-                medicineId: Number(item.medicine_id),
-                medicineName: item.medicine_name,
-                batchNumber: item.batch_number,
-                unitPrice: Number(item.unit_price),
-                quantity: Number(item.requested_quantity),
-                lineTotal: Number(item.line_total),
-              })),
-              unavailableItems: res.data.unavailable_items || [],
-            },
-          }
-        }
-      } catch (error) {
-        if (!markApiUnavailable(error)) {
-          return { success: false, error: error.response?.data?.message || error.message }
-        }
+  const preparePrescriptionForBilling = useCallback(async (id) => {
+    if (!apiAvailableRef.current) return { success: false, error: 'API unavailable' }
+    try {
+      const res = await prescriptionService.sendToBilling(id)
+      if (!res.success) return { success: false, error: res.message || 'Unable to prepare prescription' }
+      return {
+        success: true,
+        data: {
+          customer: res.data.customer,
+          items: (res.data.items || []).map(item => ({
+            medicineId: Number(item.medicine_id),
+            medicineName: item.medicine_name,
+            batchNumber: item.batch_number,
+            unitPrice: Number(item.unit_price),
+            quantity: Number(item.requested_quantity),
+            lineTotal: Number(item.line_total),
+          })),
+          unavailableItems: res.data.unavailable_items || [],
+        },
       }
+    } catch (error) {
+      markApiUnavailable(error)
+      return { success: false, error: error.response?.data?.message || error.message }
     }
-
-    return { success: true, data: fallbackData }
   }, [markApiUnavailable])
 
   // Sale actions

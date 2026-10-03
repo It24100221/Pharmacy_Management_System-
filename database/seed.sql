@@ -17,7 +17,7 @@ BEGIN
     (N'pharmacist', N'$2a$12$H6KcerPt46iKr/ZPpKQKKOH74Wg0UhdUN9v9oFFWPGVNedyptfQgu', N'PHARMACIST'),
     (N'inventory', N'$2a$12$E9CLQ67F6SH4t9m.wNWGy.sfil57HgjzlVX8ub0ZC.3OI7BWKl1WW', N'INVENTORY'),
     (N'sales', N'$2a$12$Q9GTxb14dD.ANc.9GUvope/2aoAu.71WxUhQ2sbACL8vIVueQ2YS6', N'SALES'),
-    (N'supplier', N'$2a$12$ywEnQuFUZd8XI4s3FalimulvwaiZwe.tx2eEa.Tmd07dytyE2Vn0u', N'SUPPLIER');
+    (N'supplier', N'$2a$12$CboP72aL.WG0.sXl00a5B.6/8XyWb.JABaSU0o7igy2Lr0gSEeF3e', N'SUPPLIER');
 END;
 GO
 

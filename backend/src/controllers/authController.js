@@ -2,12 +2,20 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const asyncHandler = require('../utils/asyncHandler')
 const authRepository = require('../repositories/authRepository')
+const { JWT_AUDIENCE, JWT_ISSUER, getJwtSecret } = require('../config/jwt')
 
 const staffRoles = ['ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES', 'SUPPLIER']
-const getSecret = () => process.env.JWT_SECRET || 'development-only-change-me'
 
 const toSession = user => ({
-  token: jwt.sign({ userId: user.user_id, customerId: user.customer_id || null, username: user.username, role: user.role }, getSecret(), { expiresIn: '8h' }),
+  token: jwt.sign({ userId: user.user_id }, getJwtSecret(), { expiresIn: '8h', issuer: JWT_ISSUER, audience: JWT_AUDIENCE }),
+  userId: user.user_id,
+  username: user.username,
+  role: user.role,
+  customerId: user.customer_id || null,
+  name: user.role === 'CUSTOMER' ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : user.staff_name || user.username,
+})
+
+const toIdentity = user => ({
   userId: user.user_id,
   username: user.username,
   role: user.role,
@@ -33,4 +41,8 @@ const registerCustomer = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, message: 'Customer account created', data: account })
 })
 
-module.exports = { customerLogin: login(['CUSTOMER']), staffLogin: login(staffRoles), registerCustomer }
+const getCurrentSession = asyncHandler(async (req, res) => {
+  res.json({ success: true, data: toIdentity(req.authUser) })
+})
+
+module.exports = { customerLogin: login(['CUSTOMER']), staffLogin: login(staffRoles), registerCustomer, getCurrentSession }

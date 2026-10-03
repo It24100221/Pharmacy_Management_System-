@@ -3,6 +3,20 @@ const customerRepository = require('../repositories/customerRepository');
 const CustomerValidator = require('../validators/customerValidator');
 
 class CustomerController {
+  getCurrentCustomer = asyncHandler(async (req, res) => {
+    const customer = await customerRepository.findById(req.user.customerId);
+    if (!customer) return res.status(404).json({ success: false, message: 'Customer profile not found' });
+    res.json({ success: true, message: 'Customer profile retrieved successfully', data: customer });
+  });
+
+  updateCurrentCustomer = asyncHandler(async (req, res) => {
+    const customerId = req.user.customerId;
+    if (!customerId) return res.status(404).json({ success: false, message: 'Customer profile not found' });
+    const validatedData = CustomerValidator.validateUpdate(customerId, req.body);
+    const customer = await customerRepository.update(customerId, validatedData);
+    res.json({ success: true, message: 'Customer profile updated successfully', data: customer });
+  });
+
   // GET /api/customers
   // GET /api/customers?search=...
   getAllCustomers = asyncHandler(async (req, res) => {

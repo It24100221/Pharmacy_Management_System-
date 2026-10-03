@@ -45,6 +45,11 @@ class PrescriptionRepository {
 
     const params = [];
 
+    if (filters.customer_id) {
+      query += ` AND p.customer_id = ?`;
+      params.push(filters.customer_id);
+    }
+
     // Search by customer
     if (filters.search) {
       query += ` AND (
@@ -233,6 +238,11 @@ class PrescriptionRepository {
     `;
 
     const params = [];
+
+    if (filters.customer_id) {
+      query += ` AND p.customer_id = ?`;
+      params.push(filters.customer_id);
+    }
 
     if (filters.search) {
       query += ` AND (

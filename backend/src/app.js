@@ -5,6 +5,9 @@ const dotenv = require('dotenv');
 // Load environment variables
 dotenv.config();
 
+const { assertJwtSecret } = require('./config/jwt');
+assertJwtSecret();
+
 const app = express();
 
 // Middleware
@@ -31,18 +34,18 @@ const purchaseRoutes = require('./routes/purchaseRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
 const authRoutes = require('./routes/authRoutes');
-const { authenticateToken, authorizeRoles } = require('./middleware/auth');
+const { authenticateToken } = require('./middleware/auth');
 const productRoutes = require('./routes/productRoutes');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api/medicines', authenticateToken, authorizeRoles('ADMIN', 'PHARMACIST', 'INVENTORY', 'SALES'), medicineRoutes);
-app.use('/api/sales', authenticateToken, authorizeRoles('ADMIN', 'SALES', 'PHARMACIST'), salesRoutes);
-app.use('/api/suppliers', authenticateToken, authorizeRoles('ADMIN', 'SUPPLIER', 'INVENTORY'), supplierRoutes);
-app.use('/api/purchases', authenticateToken, authorizeRoles('ADMIN', 'SUPPLIER', 'INVENTORY'), purchaseRoutes);
+app.use('/api/medicines', authenticateToken, medicineRoutes);
+app.use('/api/sales', authenticateToken, salesRoutes);
+app.use('/api/suppliers', authenticateToken, supplierRoutes);
+app.use('/api/purchases', authenticateToken, purchaseRoutes);
 app.use('/api/customers', customerRoutes);
-app.use('/api/prescriptions', authenticateToken, authorizeRoles('CUSTOMER', 'ADMIN', 'PHARMACIST'), prescriptionRoutes);
+app.use('/api/prescriptions', authenticateToken, prescriptionRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

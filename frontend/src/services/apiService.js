@@ -69,6 +69,8 @@ export const supplierService = {
 // CUSTOMER SERVICE
 // ============================================================================
 export const customerService = {
+  getMe: async () => (await api.get('/customers/me')).data,
+  updateMe: async data => (await api.put('/customers/me', data)).data,
   getAll: async (params = {}) => {
     const response = await api.get('/customers', { params })
     return response.data
@@ -127,6 +129,7 @@ export const prescriptionService = {
     const response = await api.get(`/prescriptions/customer/${customerId}`)
     return response.data
   },
+  getMine: async () => (await api.get('/prescriptions/mine')).data,
   getAll: async (params = {}) => {
     const response = await api.get('/prescriptions', { params })
     return response.data

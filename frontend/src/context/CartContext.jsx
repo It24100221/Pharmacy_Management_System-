@@ -1,10 +1,15 @@
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 
 const CartContext = createContext(null)
 const readCart = () => { try { return JSON.parse(localStorage.getItem('pharmacy_customer_cart')) || [] } catch { return [] } }
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState(readCart)
+  useEffect(() => {
+    const clearForLogout = () => setCart([])
+    window.addEventListener('pharmacy:logout', clearForLogout)
+    return () => window.removeEventListener('pharmacy:logout', clearForLogout)
+  }, [])
   const save = next => { setCart(next); localStorage.setItem('pharmacy_customer_cart', JSON.stringify(next)) }
   const addItem = medicine => {
     const existing = cart.find(item => item.medicineId === medicine.id)
