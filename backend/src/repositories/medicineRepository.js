@@ -125,7 +125,8 @@ class MedicineRepository {
       INSERT INTO medicines (
         name, description, generic_name, manufacturer, category,
         batch_number, quantity, unit_price, expiry_date, min_stock_level
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) OUTPUT INSERTED.id AS insertId
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const values = [

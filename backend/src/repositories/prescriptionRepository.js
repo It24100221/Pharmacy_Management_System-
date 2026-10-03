@@ -2,6 +2,27 @@ const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
 
 class PrescriptionRepository {
+  async createUpload({ customerId, image, doctorName, notes }) {
+    const [result] = await pool.execute(`
+      INSERT INTO prescription_uploads (customer_id, image, doctor_name, notes, status)
+      OUTPUT INSERTED.prescription_id AS insertId
+      VALUES (?, ?, ?, ?, ?)
+    `, [customerId, image, doctorName || null, notes || null, 'PENDING']);
+
+    return result.insertId;
+  }
+
+  async findUploadsByCustomer(customerId) {
+    const [rows] = await pool.execute(`
+      SELECT prescription_id, customer_id, doctor_name, notes, status,
+        uploaded_date AS created_date
+      FROM prescription_uploads
+      WHERE customer_id = ?
+      ORDER BY uploaded_date DESC
+    `, [customerId]);
+    return rows;
+  }
+
   // Get all prescriptions
   async findAll(filters = {}) {
     let query = `
@@ -129,6 +150,7 @@ class PrescriptionRepository {
       // 1. Create prescription header
       const prescriptionQuery = `
         INSERT INTO prescriptions (customer_id, prescription_date, instructions, notes)
+        OUTPUT INSERTED.id AS insertId
         VALUES (?, ?, ?, ?)
       `;
 

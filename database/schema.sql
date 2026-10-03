@@ -1,3 +1,7 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 IF DB_ID(N'pharmacy_management') IS NULL
 BEGIN
     CREATE DATABASE pharmacy_management;

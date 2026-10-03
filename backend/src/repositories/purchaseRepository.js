@@ -125,6 +125,7 @@ class PurchaseRepository {
       // 1. Create purchase header
       const purchaseQuery = `
         INSERT INTO purchases (supplier_id, purchase_date, total_amount, notes)
+        OUTPUT INSERTED.id AS insertId
         VALUES (?, ?, ?, ?)
       `;
 

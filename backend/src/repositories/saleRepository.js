@@ -188,6 +188,7 @@ class SaleRepository {
       // 2. Create sale header
       const saleQuery = `
         INSERT INTO sales (customer_id, sale_date, total_amount, discount, final_amount, payment_method, notes)
+        OUTPUT INSERTED.id AS insertId
         VALUES (?, NOW(), ?, ?, ?, ?, ?)
       `;
 

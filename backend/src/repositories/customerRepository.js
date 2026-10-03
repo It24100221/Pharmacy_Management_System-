@@ -75,7 +75,8 @@ class CustomerRepository {
     const query = `
       INSERT INTO customers (
         first_name, last_name, email, phone, address, date_of_birth
-      ) VALUES (?, ?, ?, ?, ?, ?)
+      ) OUTPUT INSERTED.id AS insertId
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
 
     const values = [

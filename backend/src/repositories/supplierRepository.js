@@ -68,7 +68,8 @@ class SupplierRepository {
     const query = `
       INSERT INTO suppliers (
         company_name, contact_person, email, phone, address
-      ) VALUES (?, ?, ?, ?, ?)
+      ) OUTPUT INSERTED.id AS insertId
+      VALUES (?, ?, ?, ?, ?)
     `;
 
     const values = [

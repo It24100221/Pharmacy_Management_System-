@@ -20,14 +20,14 @@ class AuthRepository {
     try {
       await connection.beginTransaction()
       const [userResult] = await connection.execute(
-        'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+        'INSERT INTO users (username, password, role) OUTPUT INSERTED.user_id AS insertId VALUES (?, ?, ?)',
         [username, password, 'CUSTOMER']
       )
       const names = name.trim().split(/\s+/)
       const firstName = names.shift()
       const lastName = names.join(' ') || firstName
       const [customerResult] = await connection.execute(
-        'INSERT INTO customers (user_id, first_name, last_name, email, phone, address) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO customers (user_id, first_name, last_name, email, phone, address) OUTPUT INSERTED.id AS insertId VALUES (?, ?, ?, ?, ?, ?)',
         [userResult.insertId, firstName, lastName, email, phone || null, address || null]
       )
       await connection.commit()

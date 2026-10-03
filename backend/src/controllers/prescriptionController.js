@@ -1,6 +1,5 @@
 const asyncHandler = require('../utils/asyncHandler');
 const prescriptionRepository = require('../repositories/prescriptionRepository');
-const { pool } = require('../config/database');
 const PrescriptionValidator = require('../validators/prescriptionValidator');
 const customerRepository = require('../repositories/customerRepository');
 const medicineRepository = require('../repositories/medicineRepository');
@@ -10,15 +9,15 @@ class PrescriptionController {
     const { image, doctorName, notes } = req.body;
     if (!req.user?.customerId || !image) return res.status(400).json({ success: false, message: 'A prescription image is required' });
     if (!/^data:(image\/(jpeg|png)|application\/pdf);base64,/i.test(image)) return res.status(400).json({ success: false, message: 'Only JPG, PNG, and PDF prescriptions are accepted' });
-    const [result] = await pool.execute('INSERT INTO prescription_uploads (customer_id, image, doctor_name, notes, status) VALUES (?, ?, ?, ?, ?)', [req.user.customerId, image, doctorName || null, notes || null, 'PENDING']);
-    res.status(201).json({ success: true, message: 'Prescription uploaded for review', data: { id: result.insertId, status: 'PENDING' } });
+    const prescriptionId = await prescriptionRepository.createUpload({ customerId: req.user.customerId, image, doctorName, notes });
+    res.status(201).json({ success: true, message: 'Prescription uploaded for review', data: { id: prescriptionId, status: 'PENDING' } });
   });
 
   getCustomerUploads = asyncHandler(async (req, res) => {
     const customerId = parseInt(req.params.id, 10);
     const canRead = req.user?.role !== 'CUSTOMER' || req.user.customerId === customerId;
     if (!canRead) return res.status(403).json({ success: false, message: 'You can only view your own prescriptions' });
-    const [prescriptions] = await pool.execute('SELECT prescription_id, customer_id, doctor_name, notes, status, uploaded_date AS created_date FROM prescription_uploads WHERE customer_id = ? ORDER BY uploaded_date DESC', [customerId]);
+    const prescriptions = await prescriptionRepository.findUploadsByCustomer(customerId);
     res.json({ success: true, data: { prescriptions } });
   });
   // GET /api/prescriptions

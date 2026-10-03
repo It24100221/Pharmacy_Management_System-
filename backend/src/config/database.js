@@ -35,10 +35,6 @@ function convertQuery(query) {
     .replace(/LIMIT @p(\d+) OFFSET @p(\d+)/i, 'OFFSET @p$2 ROWS FETCH NEXT @p$1 ROWS ONLY')
     .replace(/LIMIT @p(\d+)/i, 'OFFSET 0 ROWS FETCH NEXT @p$1 ROWS ONLY');
 
-  if (/^\s*INSERT\s+INTO\s+\w+/i.test(converted) && !/OUTPUT\s+INSERTED\.id/i.test(converted)) {
-    converted = converted.replace(/^(\s*INSERT\s+INTO\s+\w+\s*\([\s\S]*?\))(\s*VALUES\b)/i, '$1 OUTPUT INSERTED.id$2');
-  }
-
   return { query: converted, parameterCount: parameterIndex };
 }
 
@@ -50,7 +46,7 @@ async function executeOn(requestFactory, query, params = []) {
 
   const result = await request.query(converted.query);
   if (converted.query.trimStart().toUpperCase().startsWith('INSERT')) {
-    return [{ insertId: result.recordset?.[0]?.id }];
+    return [result.recordset?.[0] || {}];
   }
   return [result.recordset || []];
 }
