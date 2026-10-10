@@ -2,6 +2,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../middleware/errorHandler');
 const prescriptionRepository = require('../repositories/prescriptionRepository');
 const prescriptionFileStorage = require('../services/prescriptionFileStorage');
+const { parsePositiveInteger } = require('../utils/requestValidation');
+const notificationRepository = require('../repositories/notificationRepository');
 
 const toPublicUpload = upload => ({
   prescription_id: upload.prescription_id,
@@ -60,6 +62,16 @@ const uploadPrescription = asyncHandler(async (req, res) => {
     orderId,
   });
 
+  await notificationRepository.notifyRole({
+    role: 'PHARMACIST',
+    type: 'PRESCRIPTION_RECEIVED',
+    title: 'Prescription received',
+    message: `Prescription ${prescriptionId} is waiting for pharmacist review.`,
+    entityType: 'prescription_upload',
+    entityId: prescriptionId,
+    deduplicationKey: `prescription-received:${prescriptionId}`,
+  });
+
   res.status(201).json({
     success: true,
     message: 'Prescription uploaded for review',
@@ -80,10 +92,32 @@ const getOwnUploads = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { prescriptions: uploads.map(toPublicUpload) } });
 });
 
+const listForReview = asyncHandler(async (req, res) => {
+  const status = req.query.status === 'all' ? null : 'PENDING';
+  const uploads = await prescriptionRepository.findUploadsForReview(status);
+  res.json({ success: true, data: { uploads } });
+});
+
+const reviewStandalone = asyncHandler(async (req, res) => {
+  const id = parsePositiveInteger(req.params.id, 'prescription upload ID');
+  const decision = String(req.body?.decision || '').toUpperCase();
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+  if (!['APPROVED', 'REJECTED'].includes(decision)) throw new ApiError('Decision must be APPROVED or REJECTED', 400);
+  if (decision === 'REJECTED' && !reason) throw new ApiError('A rejection reason is required', 400);
+  if (reason.length > 1000) throw new ApiError('Rejection reason is too long', 400);
+  const upload = await prescriptionRepository.reviewUpload(id, req.user.userId, decision, reason);
+  const customerUserId = await notificationRepository.findUserIdForCustomer(upload.customer_id);
+  if (customerUserId) await notificationRepository.create({ recipientUserId: customerUserId,
+    type: decision === 'APPROVED' ? 'PRESCRIPTION_APPROVED' : 'PRESCRIPTION_REJECTED',
+    title: decision === 'APPROVED' ? 'Prescription reviewed' : 'Prescription rejected',
+    message: decision === 'APPROVED' ? `Prescription upload ${id} was reviewed. A pharmacist must confirm the medicines before billing.` : `Prescription upload ${id} was rejected.`,
+    entityType: 'prescription_upload', entityId: id, deduplicationKey: `upload-review:${id}:${decision}` });
+  res.json({ success: true, data: toPublicUpload(upload) });
+});
+
 const getCustomerUploads = asyncHandler(async (req, res) => {
-  const customerId = Number.parseInt(req.params.id, 10);
-  if (!Number.isInteger(customerId) || customerId <= 0) throw new ApiError('Invalid customer ID', 400);
-  if (req.user.role === 'CUSTOMER' && req.user.customerId !== customerId) {
+  const customerId = parsePositiveInteger(req.params.id, 'customer ID');
+  if (req.user.role === 'CUSTOMER' && Number(req.user.customerId) !== customerId) {
     return res.status(403).json({ success: false, message: 'You can only view your own prescriptions' });
   }
   const uploads = await prescriptionRepository.findUploadsByCustomer(customerId);
@@ -91,18 +125,19 @@ const getCustomerUploads = asyncHandler(async (req, res) => {
 });
 
 const getFile = asyncHandler(async (req, res) => {
-  const id = Number.parseInt(req.params.id, 10);
-  if (!Number.isInteger(id) || id <= 0) throw new ApiError('Invalid prescription upload ID', 400);
+  const id = parsePositiveInteger(req.params.id, 'prescription upload ID');
   const upload = await prescriptionRepository.findUploadById(id);
   if (!upload) throw new ApiError('Prescription upload not found', 404);
-  if (req.user.role === 'CUSTOMER' && upload.customer_id !== req.user.customerId) {
+  if (req.user.role === 'CUSTOMER' && Number(upload.customer_id) !== Number(req.user.customerId)) {
     return res.status(403).json({ success: false, message: 'You can only access your own prescription files' });
   }
   if (!upload.storage_path || !upload.mime_type) throw new ApiError('Prescription file is unavailable', 404);
 
   const file = await prescriptionFileStorage.readFile(upload.storage_path);
   const safeDownloadName = encodeURIComponent(String(upload.original_filename || 'prescription'));
-  const fallbackName = upload.mime_type === 'image/png' ? 'prescription.png' : 'prescription.jpg';
+  const fallbackName = upload.mime_type === 'application/pdf'
+    ? 'prescription.pdf'
+    : upload.mime_type === 'image/png' ? 'prescription.png' : 'prescription.jpg';
   res.set({
     'Content-Type': upload.mime_type,
     'Content-Length': String(file.length),
@@ -119,4 +154,6 @@ module.exports = {
   getOwnUploads,
   persistPrescriptionUpload,
   uploadPrescription,
+  listForReview,
+  reviewStandalone,
 };

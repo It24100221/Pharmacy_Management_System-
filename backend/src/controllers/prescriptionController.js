@@ -1,12 +1,14 @@
 const asyncHandler = require('../utils/asyncHandler');
+const ApiError = require('../middleware/errorHandler');
 const prescriptionRepository = require('../repositories/prescriptionRepository');
 const PrescriptionValidator = require('../validators/prescriptionValidator');
 const customerRepository = require('../repositories/customerRepository');
 const medicineRepository = require('../repositories/medicineRepository');
+const { parseDateRange, parsePagination, parsePositiveInteger, parseRecentLimit, parseSearch } = require('../utils/requestValidation');
 
 class PrescriptionController {
   canAccessPrescription(req, prescription) {
-    return req.user.role !== 'CUSTOMER' || prescription.customer_id === req.user.customerId;
+    return req.user.role !== 'CUSTOMER' || Number(prescription.customer_id) === Number(req.user.customerId);
   }
 
   // GET /api/prescriptions
@@ -14,14 +16,8 @@ class PrescriptionController {
   getAllPrescriptions = asyncHandler(async (req, res) => {
     const { search, start_date, end_date, page, limit, pagination } = req.query;
 
-    const filters = {
-      search: search || undefined,
-      start_date: start_date || undefined,
-      end_date: end_date || undefined,
-      page: page,
-      limit: limit,
-      pagination: pagination === 'false' ? false : true
-    };
+    const paging = parsePagination(req.query);
+    const filters = { search: parseSearch(search), ...parseDateRange(start_date, end_date), ...paging };
 
     if (req.user.role === 'CUSTOMER') filters.customer_id = req.user.customerId;
 
@@ -34,10 +30,10 @@ class PrescriptionController {
       data: {
         prescriptions,
         pagination: {
-          current_page: parseInt(page) || 1,
-          per_page: parseInt(limit) || 50,
+          current_page: paging.page,
+          per_page: paging.limit,
           total_items: total,
-          total_pages: Math.ceil(total / (parseInt(limit) || 50))
+          total_pages: Math.ceil(total / paging.limit)
         }
       }
     });
@@ -45,7 +41,7 @@ class PrescriptionController {
 
   // GET /api/prescriptions/recent
   getRecentPrescriptions = asyncHandler(async (req, res) => {
-    const limit = parseInt(req.query.limit) || 5;
+    const limit = parseRecentLimit(req.query.limit);
     const prescriptions = await prescriptionRepository.findRecent(limit);
 
     res.json({
@@ -55,9 +51,13 @@ class PrescriptionController {
     });
   });
 
+  getReadyForBilling = asyncHandler(async (req, res) => {
+    res.json({ success: true, data: { prescriptions: await prescriptionRepository.findReadyForBilling() } });
+  });
+
   // GET /api/prescriptions/:id
   getPrescriptionById = asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parsePositiveInteger(req.params.id, 'prescription ID');
 
     const prescription = await prescriptionRepository.findById(id);
 
@@ -105,7 +105,8 @@ class PrescriptionController {
     }
 
     // Create prescription with items
-    const prescription = await prescriptionRepository.createWithItems(validatedData, validatedData.items);
+    const uploadId = req.body?.upload_id == null ? null : parsePositiveInteger(req.body.upload_id, 'upload ID');
+    const prescription = await prescriptionRepository.createWithItems({ ...validatedData, upload_id: uploadId, reviewer_user_id: req.user.userId }, validatedData.items);
 
     res.status(201).json({
       success: true,
@@ -117,7 +118,7 @@ class PrescriptionController {
   // GET /api/prescriptions/:id/availability
   // Check medicine availability for a prescription
   checkAvailability = asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parsePositiveInteger(req.params.id, 'prescription ID');
 
     // Verify prescription exists
     const prescription = await prescriptionRepository.findById(id);
@@ -181,8 +182,11 @@ class PrescriptionController {
       });
     }
 
-    // Recheck availability at handoff time without changing stock.
     const availability = await prescriptionRepository.checkAvailability(prescriptionId);
+    if (!availability.length || availability.some(item => item.availability_status !== 'available')) {
+      throw new ApiError('All prescribed medicines must be available before billing handoff', 409);
+    }
+    const preparedPrescription = await prescriptionRepository.prepareForBilling(prescriptionId, req.user.userId);
 
     // Only currently available, non-expired lines may enter the POS cart.
     const billingItems = availability
@@ -216,7 +220,8 @@ class PrescriptionController {
       message: 'Prescription prepared for billing. Stock will be reduced when sale is completed.',
       data: {
         prescription_id: prescriptionId,
-        prescription_date: prescription.prescription_date,
+        prescription_status: preparedPrescription.status,
+        prescription_date: preparedPrescription.prescription_date,
         customer: {
           id: prescription.customer_id,
           name: `${prescription.first_name} ${prescription.last_name}`,
@@ -233,6 +238,26 @@ class PrescriptionController {
         billing_note: 'Stock will be reduced only after completing the sale.'
       }
     });
+  });
+
+  getBilling = asyncHandler(async (req, res) => {
+    const id = parsePositiveInteger(req.params.id, 'prescription ID');
+    const prescription = await prescriptionRepository.findById(id);
+    if (!prescription) throw new ApiError('Prescription not found', 404);
+    if (!['APPROVED', 'READY_FOR_BILLING'].includes(prescription.status)) throw new ApiError(`Prescription status ${prescription.status} cannot be billed`, 409);
+    const availability = await prescriptionRepository.checkAvailability(id);
+    if (!availability.length || availability.some(item => item.availability_status !== 'available')) throw new ApiError('Prescription medicines are no longer fully available', 409);
+    const items = availability.filter(item => item.availability_status === 'available').map(item => ({ medicine_id: item.medicine_id, product_code: item.product_code, medicine_name: item.medicine_name, batch_number: item.batch_number, unit_price: item.unit_price, quantity: item.requested_quantity, line_total: Number(item.unit_price) * Number(item.requested_quantity) }));
+    res.json({ success: true, data: { prescription_id: id, status: prescription.status, customer: { id: prescription.customer_id, name: `${prescription.first_name} ${prescription.last_name}` }, items, unavailable_items: availability.filter(item => item.availability_status !== 'available') } });
+  });
+
+  updateStatus = asyncHandler(async (req, res) => {
+    const id = parsePositiveInteger(req.params.id, 'prescription ID');
+    const status = typeof req.body?.status === 'string' ? req.body.status.trim().toUpperCase() : '';
+    const allowed = new Set(['UNDER_REVIEW', 'APPROVED', 'REJECTED', 'READY_FOR_BILLING', 'DISPENSED', 'CANCELLED']);
+    if (!allowed.has(status)) throw new ApiError('Invalid prescription status', 400);
+    const prescription = await prescriptionRepository.updateStatus(id, req.user.userId, status, typeof req.body?.reason === 'string' ? req.body.reason.trim() : null);
+    res.json({ success: true, message: 'Prescription status updated', data: prescription });
   });
 }
 

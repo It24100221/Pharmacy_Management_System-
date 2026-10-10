@@ -1,5 +1,5 @@
 import api from './api.js'
-import { DASHBOARD_PATHS } from '../config/authorization.js'
+import { DASHBOARD_PATHS, normalizeRole } from '../config/authorization.js'
 
 export const SESSION_KEY = 'pharmacy_auth_session'
 export const SENSITIVE_CACHE_KEYS = [
@@ -33,18 +33,18 @@ export const authService = {
   getSession: () => {
     try {
       const session = JSON.parse(localStorage.getItem(SESSION_KEY))
-      if (isUsableSession(session)) return session
+      if (isUsableSession(session)) return { ...session, role: normalizeRole(session.role) }
     } catch {}
     authService.clearSession()
     return null
   },
-  saveSession: session => { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); localStorage.setItem('pharmacy_token', session.token) },
+  saveSession: session => { const normalized = { ...session, role: normalizeRole(session?.role) }; localStorage.setItem(SESSION_KEY, JSON.stringify(normalized)); localStorage.setItem('pharmacy_token', normalized.token) },
   clearSession: () => {
     localStorage.removeItem(SESSION_KEY)
     localStorage.removeItem('pharmacy_token')
     SENSITIVE_CACHE_KEYS.forEach(key => localStorage.removeItem(key))
   },
-  getDashboardPath: role => DASHBOARD_PATHS[role] || '/login',
+  getDashboardPath: role => DASHBOARD_PATHS[normalizeRole(role)] || '/login',
 }
 
 export default authService

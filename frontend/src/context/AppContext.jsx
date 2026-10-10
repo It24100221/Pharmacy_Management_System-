@@ -340,7 +340,7 @@ export function AppProvider({ children }) {
       const res = await customerService.remove(id)
       if (res.success) {
         dispatch({ type: 'SET_CUSTOMERS', payload: state.customers.filter(customer => customer.id !== Number(id)) })
-        showToast('Customer deleted successfully', 'success')
+        showToast(res.message || 'Customer deactivated successfully', 'success')
         return { success: true }
       }
     } catch (error) {
@@ -393,6 +393,7 @@ export function AppProvider({ children }) {
       return {
         success: true,
         data: {
+          prescriptionId: Number(res.data.prescription_id || id),
           customer: res.data.customer,
           items: (res.data.items || []).map(item => ({
             medicineId: Number(item.medicine_id),

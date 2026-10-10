@@ -15,11 +15,11 @@ const MedicineListPage = () => {
       if (search) {
         const q = search.toLowerCase()
         if (
-          !m.name.toLowerCase().includes(q) &&
-          !m.productCode.toLowerCase().includes(q) &&
-          !m.genericName.toLowerCase().includes(q) &&
-          !m.category.toLowerCase().includes(q) &&
-          !m.batchNumber.toLowerCase().includes(q)
+          !String(m.name || '').toLowerCase().includes(q) &&
+          !String(m.productCode || '').toLowerCase().includes(q) &&
+          !String(m.genericName || '').toLowerCase().includes(q) &&
+          !String(m.category || '').toLowerCase().includes(q) &&
+          !String(m.batchNumber || '').toLowerCase().includes(q)
         ) return false
       }
       if (stockStatus && m.stockStatus !== stockStatus) return false
@@ -165,9 +165,10 @@ const MedicineListPage = () => {
                     <td style={{ textAlign: 'center' }}>{renderStockBadge(medicine.stockStatus)}</td>
                     <td style={{ textAlign: 'center' }}>{renderExpiryBadge(medicine.expiryStatus, medicine.expiryDate)}</td>
                     <td style={{ textAlign: 'center' }}>
-                      <Link to={`/medicines/edit/${medicine.id}`} className="btn btn-ghost btn-sm" title="Edit Medicine">
-                        <Pencil size={16} /> Edit
-                      </Link>
+                      <div style={{ display: 'inline-flex', gap: 'var(--space-1)' }}>
+                        <Link to={`/medicines/${medicine.id}/batches`} className="btn btn-ghost btn-sm">Batches</Link>
+                        <Link to={`/medicines/edit/${medicine.id}`} className="btn btn-ghost btn-sm" title="Edit Medicine"><Pencil size={16} /> Edit</Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

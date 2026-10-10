@@ -25,10 +25,13 @@ import AddMedicinePage from './pages/Medicines/AddMedicinePage.jsx'
 import EditMedicinePage from './pages/Medicines/EditMedicinePage.jsx'
 import LowStockPage from './pages/Medicines/LowStockPage.jsx'
 import ExpiryPage from './pages/Medicines/ExpiryPage.jsx'
+import MedicineBatchesPage from './pages/Medicines/MedicineBatchesPage.jsx'
 
 // Sales pages
 import POSPage from './pages/Sales/POSPage.jsx'
 import ReceiptPage from './pages/Sales/ReceiptPage.jsx'
+import SalesHistoryPage from './pages/Sales/SalesHistoryPage.jsx'
+import InvoiceHistoryPage from './pages/Sales/InvoiceHistoryPage.jsx'
 
 // Supplier pages
 import SupplierListPage from './pages/Suppliers/SupplierListPage.jsx'
@@ -37,6 +40,12 @@ import EditSupplierPage from './pages/Suppliers/EditSupplierPage.jsx'
 
 // Purchase pages
 import CreatePurchasePage from './pages/Purchases/CreatePurchasePage.jsx'
+import PurchaseOrdersPage from './pages/Purchases/PurchaseOrdersPage.jsx'
+import PurchaseOrderDetailsPage from './pages/Purchases/PurchaseOrderDetailsPage.jsx'
+import GoodsReceiptsPage from './pages/Purchases/GoodsReceiptsPage.jsx'
+import SupplierOperationsPage from './pages/Purchases/SupplierOperationsPage.jsx'
+import SupplierInquiryDetailsPage from './pages/Purchases/SupplierInquiryDetailsPage.jsx'
+import SupplierInvoiceDetailsPage from './pages/Purchases/SupplierInvoiceDetailsPage.jsx'
 
 // Customer pages
 import CustomerListPage from './pages/Customers/CustomerListPage.jsx'
@@ -101,6 +110,7 @@ function App() {
         <Route path="/medicines" element={<MedicineListPage />} />
         <Route path="/medicines/low-stock" element={<LowStockPage />} />
         <Route path="/medicines/expiry" element={<ExpiryPage />} />
+        <Route path="/medicines/:id/batches" element={<MedicineBatchesPage />} />
         </Route>
       </Route>
 
@@ -111,6 +121,12 @@ function App() {
         <Route path="/suppliers/add" element={<AddSupplierPage />} />
         <Route path="/suppliers/edit/:id" element={<EditSupplierPage />} />
         <Route path="/purchases" element={<CreatePurchasePage />} />
+        <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+        <Route path="/purchase-orders/:id" element={<PurchaseOrderDetailsPage />} />
+        <Route path="/goods-receipts" element={<GoodsReceiptsPage />} />
+        <Route path="/supplier-purchasing" element={<SupplierOperationsPage />} />
+        <Route path="/supplier-inquiries/:id" element={<SupplierInquiryDetailsPage />} />
+        <Route path="/supplier-invoices/:id" element={<SupplierInvoiceDetailsPage />} />
         </Route>
       </Route>
 
@@ -118,6 +134,8 @@ function App() {
         <Route element={<AppLayout />}>
         <Route path="/sales" element={<POSPage />} />
         <Route path="/sales/receipt/:id" element={<ReceiptPage />} />
+        <Route path="/sales-history" element={<SalesHistoryPage />} />
+        <Route path="/invoice-history" element={<InvoiceHistoryPage />} />
         <Route path="/billing-orders" element={<BillingOrderQueue />} />
         </Route>
       </Route>

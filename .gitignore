@@ -63,6 +63,13 @@ backend/uploads/prescriptions/*
 *.swo
 *~
 
+# Local browser QA profiles and generated evidence
+qa-auth-edge-profile/
+qa-audit/.edge-fix-profile/
+qa-audit/.edge-qa-profile/
+qa-audit/evidence/
+qa-audit/logs/
+
 # Docker
 docker-compose.override.yml
 

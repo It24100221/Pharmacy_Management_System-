@@ -1,8 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import authService from '../services/authService.js'
-import { AUTH_STATES } from '../config/authorization.js'
+import { AUTH_STATES, normalizeRole } from '../config/authorization.js'
 
 const AuthContext = createContext(null)
+
+const normalizeSession = session => session ? { ...session, role: normalizeRole(session.role) } : session
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
@@ -21,7 +23,7 @@ export function AuthProvider({ children }) {
     setStatus(AUTH_STATES.INITIALIZING)
     try {
       const identity = await authService.getCurrent()
-      const restored = { ...identity, token: stored.token }
+      const restored = normalizeSession({ ...identity, token: stored.token })
       authService.saveSession(restored)
       setSession(restored)
       setStatus(AUTH_STATES.AUTHENTICATED)
@@ -56,7 +58,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = async (type, credentials) => {
-    const next = type === 'customer' ? await authService.customerLogin(credentials) : await authService.staffLogin(credentials)
+    const next = normalizeSession(type === 'customer' ? await authService.customerLogin(credentials) : await authService.staffLogin(credentials))
     authService.saveSession(next)
     setSession(next)
     setStatus(AUTH_STATES.AUTHENTICATED)

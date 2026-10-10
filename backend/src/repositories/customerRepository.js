@@ -13,10 +13,12 @@ class CustomerRepository {
         c.phone,
         c.address,
         c.date_of_birth,
+        c.is_active,
+        c.deactivated_at,
         c.created_at,
         c.updated_at
       FROM customers c
-      WHERE 1=1
+      WHERE c.is_active = 1
     `;
 
     const params = [];
@@ -60,6 +62,8 @@ class CustomerRepository {
         c.phone,
         c.address,
         c.date_of_birth,
+        c.is_active,
+        c.deactivated_at,
         c.created_at,
         c.updated_at
       FROM customers c
@@ -118,23 +122,20 @@ class CustomerRepository {
     if (!existing) {
       throw new ApiError('Customer not found', 404);
     }
-
-    try {
-      await pool.execute('DELETE FROM customers WHERE id = ?', [id]);
-      if (await this.findById(id)) {
-        throw new ApiError('Customer was not deleted', 409);
-      }
-    } catch (error) {
-      if (error.number === 547) {
-        throw new ApiError('Customer cannot be deleted because related prescriptions exist', 409);
-      }
-      throw error;
+    if (Number(existing.is_active) !== 1) {
+      throw new ApiError('Customer is already deactivated', 409);
     }
+
+    await pool.execute(
+      'UPDATE customers SET is_active = 0, deactivated_at = SYSDATETIME(), updated_at = SYSDATETIME() WHERE id = ? AND is_active = 1',
+      [id]
+    );
+    return { deactivated: true };
   }
 
   // Get total count
   async getCount(filters = {}) {
-    let query = `SELECT COUNT(*) as total FROM customers c WHERE 1=1`;
+    let query = `SELECT COUNT(*) as total FROM customers c WHERE c.is_active = 1`;
     const params = [];
 
     if (filters.search) {

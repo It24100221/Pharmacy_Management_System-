@@ -3,10 +3,12 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Pill, ShoppingCart, Building2, Users,
   ClipboardPlus, Plus, AlertTriangle, Clock, Package,
-  Menu, ChevronDown, ArrowRight
+  Menu, ChevronDown, ArrowRight, Check
+  , Bell
 } from '../common/Icons.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import authService from '../../services/authService.js'
+import { notificationService } from '../../services/apiService.js'
 
 const navModules = [
   {
@@ -34,6 +36,9 @@ const navModules = [
       { label: 'Suppliers', path: '/suppliers', icon: Building2, roles: ['ADMIN', 'INVENTORY', 'SUPPLIER'] },
       { label: 'Add Supplier', path: '/suppliers/add', icon: Plus, roles: ['ADMIN', 'INVENTORY'] },
       { label: 'Receive Stock', path: '/purchases', icon: Package, roles: ['ADMIN', 'INVENTORY'] },
+      { label: 'Purchasing workspace', path: '/supplier-purchasing', icon: ClipboardPlus, roles: ['ADMIN', 'INVENTORY'] },
+      { label: 'Purchase orders', path: '/purchase-orders', icon: Package, roles: ['ADMIN', 'INVENTORY'] },
+      { label: 'Goods receipts', path: '/goods-receipts', icon: Check, roles: ['ADMIN', 'INVENTORY'] },
     ]
   },
   {
@@ -53,6 +58,8 @@ const TopNav = ({ onMobileOpen }) => {
   const role = session?.role
   const location = useLocation()
   const [openDropdown, setOpenDropdown] = useState(null)
+  const [notifications, setNotifications] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
   const dropdownRefs = useRef({})
 
   // Close dropdown on route change
@@ -71,6 +78,21 @@ const TopNav = ({ onMobileOpen }) => {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [openDropdown])
+
+  useEffect(() => {
+    let active = true
+    const loadNotifications = () => notificationService.getAll({ limit: 8 })
+      .then(response => { if (active) { setNotifications(response.data?.notifications || []); setUnreadCount(Number(response.data?.unread_count || 0)) } })
+      .catch(() => {})
+    if (role) { loadNotifications(); const timer = window.setInterval(loadNotifications, 30000); return () => { active = false; window.clearInterval(timer) } }
+    return () => { active = false }
+  }, [role])
+
+  const markNotificationRead = async notification => {
+    if (!notification.read_at) {
+      try { await notificationService.markRead(notification.notification_id); setNotifications(current => current.map(item => item.notification_id === notification.notification_id ? { ...item, read_at: new Date().toISOString() } : item)); setUnreadCount(count => Math.max(0, count - 1)) } catch {}
+    }
+  }
 
   useEffect(() => {
     const onEscape = (event) => {
@@ -152,6 +174,12 @@ const TopNav = ({ onMobileOpen }) => {
           })}
         </div>
 
+        <div className="nav-notifications">
+          <button type="button" className="nav-notification-button" aria-label={`Notifications${unreadCount ? ` (${unreadCount} unread)` : ''}`} onClick={() => setOpenDropdown(openDropdown === 'notifications' ? null : 'notifications')}>
+            <Bell size={18} />{unreadCount > 0 && <span className="nav-notification-count">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+          </button>
+          {openDropdown === 'notifications' && <div className="nav-notification-menu"><strong>Notifications</strong>{notifications.length ? notifications.map(notification => <button type="button" key={notification.notification_id} className={`nav-notification-item ${notification.read_at ? '' : 'unread'}`} onClick={() => markNotificationRead(notification)}><b>{notification.title}</b><span>{notification.message}</span><small>{new Date(notification.created_at).toLocaleString()}</small></button>) : <span className="nav-notification-empty">No notifications</span>}</div>}
+        </div>
         {['ADMIN', 'SALES'].includes(role) && <Link to="/sales" className="nav-sale-button">New Sale <ArrowRight size={16} /></Link>}
         <button type="button" className="mobile-nav-toggle" onClick={onMobileOpen} aria-label="Open navigation" aria-haspopup="dialog">
           <Menu size={22} />

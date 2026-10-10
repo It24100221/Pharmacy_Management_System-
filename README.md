@@ -225,6 +225,26 @@ npm run build
 
 The frontend will start on `http://localhost:3000`
 
+## Final evaluation package
+
+See [FINAL_EVALUATION_READINESS.md](FINAL_EVALUATION_READINESS.md) for verified evidence and limitations, [FINAL_EVALUATION_DEMO_GUIDE.md](FINAL_EVALUATION_DEMO_GUIDE.md) for the live sequence, [FINAL_PRESENTATION_CONTENT.md](FINAL_PRESENTATION_CONTENT.md) for presentation slides, and [FINAL_VIVA_PREPARATION.md](FINAL_VIVA_PREPARATION.md) for viva answers.
+
+The isolated demo fixture is documented in [FINAL_STARTUP_AND_RECOVERY_GUIDE.md](FINAL_STARTUP_AND_RECOVERY_GUIDE.md), with results in [FINAL_DEMO_TEST_RESULTS.md](FINAL_DEMO_TEST_RESULTS.md) and limitations in [FINAL_KNOWN_LIMITATIONS.md](FINAL_KNOWN_LIMITATIONS.md).
+
+The safe verification commands are:
+
+```powershell
+cd backend
+npm.cmd test
+npm.cmd run migrate
+npm.cmd run verify:api-readonly
+cd ..\frontend
+npm.cmd test -- --run
+npm.cmd run build
+```
+
+Successful write, rollback, and concurrency demonstrations must target a disposable SQL Server database populated with synthetic records. The shared development database is not reset automatically.
+
 ### Authentication and customer flow
 
 The public navbar provides `About`, `Pharmacy Items`, `Login`, and `Register` links. Customer routes include `/customer-register`, `/customer-login`, `/customer/dashboard`, `/customer/checkout`, and `/my-orders`. Pharmacists review uploaded order prescriptions at `/prescription-orders`; sales staff retrieve approved SQL-backed orders at `/billing-orders`. Staff access begins at `/staff-login` and redirects to the role dashboard.

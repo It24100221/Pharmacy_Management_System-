@@ -3,6 +3,7 @@ const saleRepository = require('../repositories/saleRepository');
 const SalesValidator = require('../validators/salesValidator');
 const medicineRepository = require('../repositories/medicineRepository');
 const customerRepository = require('../repositories/customerRepository');
+const { parseDateRange, parsePagination, parsePositiveInteger, parseRecentLimit, parseSearch } = require('../utils/requestValidation');
 
 class SalesController {
   // GET /api/sales
@@ -10,14 +11,8 @@ class SalesController {
   getAllSales = asyncHandler(async (req, res) => {
     const { search, start_date, end_date, page, limit, pagination } = req.query;
 
-    const filters = {
-      search: search || undefined,
-      start_date: start_date || undefined,
-      end_date: end_date || undefined,
-      page: page,
-      limit: limit,
-      pagination: pagination === 'false' ? false : true
-    };
+    const paging = parsePagination(req.query);
+    const filters = { search: parseSearch(search), ...parseDateRange(start_date, end_date), ...paging };
 
     const sales = await saleRepository.findAll(filters);
     const total = await saleRepository.getCount(filters);
@@ -28,10 +23,10 @@ class SalesController {
       data: {
         sales,
         pagination: {
-          current_page: parseInt(page) || 1,
-          per_page: parseInt(limit) || 50,
+          current_page: paging.page,
+          per_page: paging.limit,
           total_items: total,
-          total_pages: Math.ceil(total / (parseInt(limit) || 50))
+          total_pages: Math.ceil(total / paging.limit)
         }
       }
     });
@@ -39,7 +34,7 @@ class SalesController {
 
   // GET /api/sales/recent
   getRecentSales = asyncHandler(async (req, res) => {
-    const limit = parseInt(req.query.limit) || 5;
+    const limit = parseRecentLimit(req.query.limit);
     const sales = await saleRepository.findRecent(limit);
 
     res.json({
@@ -67,7 +62,7 @@ class SalesController {
 
   // GET /api/sales/:id
   getSaleById = asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parsePositiveInteger(req.params.id, 'sale ID');
 
     const sale = await saleRepository.findById(id);
 
@@ -127,7 +122,7 @@ class SalesController {
     }
 
     // Create sale with items (this will also reduce stock)
-    const sale = await saleRepository.createWithItems(validatedData, validatedData.items);
+    const sale = await saleRepository.createWithItems({ ...validatedData, prescription_id: validatedData.prescription_id || null, actor_user_id: req.user.userId }, validatedData.items);
 
     res.status(201).json({
       success: true,
@@ -139,7 +134,7 @@ class SalesController {
   // GET /api/sales/:id/receipt
   // Get sale data formatted for receipt display
   getReceipt = asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parsePositiveInteger(req.params.id, 'sale ID');
 
     const sale = await saleRepository.findById(id);
 

@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken')
 const authRepository = require('../repositories/authRepository')
 const { JWT_AUDIENCE, JWT_ISSUER, getJwtSecret } = require('../config/jwt')
+const { normalizeRole } = require('../utils/roles')
 
 async function authenticateToken(req, res, next) {
   const header = req.headers.authorization || ''
@@ -16,12 +17,13 @@ async function authenticateToken(req, res, next) {
   try {
     const user = await authRepository.findUserById(payload.userId)
     if (!user) return res.status(401).json({ success: false, message: 'Authentication is no longer valid' })
-    req.authUser = user
+    const role = normalizeRole(user.role)
+    req.authUser = { ...user, role }
     req.user = {
       userId: user.user_id,
       customerId: user.customer_id || null,
       username: user.username,
-      role: user.role,
+      role,
     }
     return next()
   } catch (error) {
@@ -30,7 +32,9 @@ async function authenticateToken(req, res, next) {
 }
 
 const authorizeRoles = (...roles) => (req, res, next) => {
-  if (!req.user || !roles.includes(req.user.role)) return res.status(403).json({ success: false, message: 'Insufficient permissions' })
+  const role = normalizeRole(req.user?.role)
+  const allowedRoles = roles.map(normalizeRole)
+  if (!req.user || !allowedRoles.includes(role)) return res.status(403).json({ success: false, message: 'Insufficient permissions' })
   next()
 }
 

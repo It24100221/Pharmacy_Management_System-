@@ -118,6 +118,10 @@ class PurchaseRepository {
 
   // Create purchase with items (uses transaction)
   async createWithItems(purchaseData, items) {
+    if (purchaseData.idempotency_key) {
+      const [existing] = await pool.execute('SELECT TOP 1 id FROM purchases WHERE idempotency_key = ?', [purchaseData.idempotency_key]);
+      if (existing[0]) return this.findById(existing[0].id);
+    }
     const connection = await pool.getConnection();
     let purchaseId;
 
@@ -125,20 +129,23 @@ class PurchaseRepository {
       await connection.beginTransaction();
 
       // 1. Create purchase header
+      const hasIdempotencyKey = Boolean(purchaseData.idempotency_key);
       const purchaseQuery = `
-        INSERT INTO purchases (supplier_id, purchase_date, total_amount, notes)
+        INSERT INTO purchases (supplier_id, purchase_date, total_amount, notes${hasIdempotencyKey ? ', idempotency_key' : ''})
         OUTPUT INSERTED.id AS insertId
-        VALUES (?, ?, ?, ?)
+        VALUES (?, ?, ?, ?${hasIdempotencyKey ? ', ?' : ''})
       `;
 
       const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.total_cost), 0);
 
-      const [purchaseResult] = await connection.execute(purchaseQuery, [
+      const purchaseParams = [
         purchaseData.supplier_id,
         purchaseData.purchase_date,
         totalAmount,
         purchaseData.notes || null
-      ]);
+      ];
+      if (hasIdempotencyKey) purchaseParams.push(purchaseData.idempotency_key);
+      const [purchaseResult] = await connection.execute(purchaseQuery, purchaseParams);
 
       purchaseId = purchaseResult.insertId;
 
@@ -166,7 +173,34 @@ class PurchaseRepository {
       `;
 
       for (const item of items) {
-        await connection.execute(stockUpdateQuery, [item.quantity, item.medicine_id]);
+        const [medicineRows] = await connection.execute('SELECT id FROM medicines WITH (UPDLOCK, HOLDLOCK) WHERE id = ?', [item.medicine_id]);
+        if (!medicineRows[0]) throw new ApiError(`Medicine ${item.medicine_id} not found`, 404);
+        let batchId = null;
+        if (item.batch_number) {
+          const [existingBatches] = await connection.execute(`SELECT batch_id, expiry_date, is_active FROM medicine_batches WITH (UPDLOCK, HOLDLOCK) WHERE medicine_id = ? AND batch_number = ?`, [item.medicine_id, item.batch_number]);
+          const existing = existingBatches[0];
+          if (existing) {
+            const existingExpiry = existing.expiry_date instanceof Date ? existing.expiry_date.toISOString().slice(0, 10) : String(existing.expiry_date).slice(0, 10);
+            if (existingExpiry !== item.expiry_date || !existing.is_active) throw new ApiError('Batch number conflicts with an existing expiry or inactive batch', 409);
+            batchId = existing.batch_id;
+            const [batchUpdate] = await connection.execute('UPDATE medicine_batches SET quantity_available = quantity_available + ? WHERE batch_id = ?; SELECT @@ROWCOUNT AS affectedRows', [item.quantity, batchId]);
+            if (Number(batchUpdate[0]?.affectedRows) !== 1) throw new ApiError('Unable to update received batch stock', 409);
+          } else {
+            const [created] = await connection.execute(`INSERT INTO medicine_batches (medicine_id, batch_number, expiry_date, quantity_available, unit_cost)
+              OUTPUT INSERTED.batch_id AS insertId VALUES (?, ?, ?, ?, ?)`, [item.medicine_id, item.batch_number, item.expiry_date, item.quantity, item.unit_cost]);
+            batchId = created.insertId;
+          }
+        }
+        const [stockUpdate] = await connection.execute(`${stockUpdateQuery}; SELECT @@ROWCOUNT AS affectedRows`, [item.quantity, item.medicine_id]);
+        if (Number(stockUpdate[0]?.affectedRows) !== 1) throw new ApiError(`Medicine ${item.medicine_id} stock could not be updated`, 409);
+        const [balanceRows] = await connection.execute('SELECT quantity AS balanceAfter FROM medicines WHERE id = ?', [item.medicine_id]);
+        const balanceAfter = Number(balanceRows[0]?.balanceAfter);
+        if (!Number.isFinite(balanceAfter)) throw new ApiError('Unable to determine updated stock balance', 500);
+        await connection.execute(`
+          INSERT INTO stock_movements
+            (medicine_id, batch_id, movement_type, quantity_delta, balance_after, reference_type, reference_id, idempotency_key, notes, created_by)
+          VALUES (?, ?, 'GOODS_RECEIPT', ?, ?, 'PURCHASE', ?, ?, ?, ?)
+        `, [item.medicine_id, batchId, item.quantity, balanceAfter, purchaseId, `purchase:${purchaseId}:medicine:${item.medicine_id}`, purchaseData.notes || null, purchaseData.actor_user_id || null]);
       }
 
       // Commit transaction

@@ -1,21 +1,13 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { History, PackageCheck, Truck, UserRound } from 'lucide-react'
+import { reorderService } from '../services/apiService.js'
 import { useApp } from '../context/AppContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import StaffNavbar from '../components/StaffNavbar.jsx'
 
-const supplierCards = [
-	['Supplier Profile', 'View and update your supplier details.', UserRound, '/suppliers'],
-	['Supplier Directory', 'Review the current supplier directory.', Truck, '/suppliers'],
-	['Contact Records', 'Review available supplier contact information.', History, '/suppliers'],
-	['Authorized Access', 'Use the read-only supplier workspace.', PackageCheck, '/suppliers'],
-]
-
-const SupplierDashboard = () => {
-	const { suppliers } = useApp()
-	const { session } = useAuth()
-	return <div className="staff-workspace"><StaffNavbar /><main className="role-dashboard"><section className="role-heading"><div><p className="public-kicker">SUPPLIER WORKSPACE</p><h1>Senevirathna Pharmacy Supplier Dashboard</h1><p>Welcome back, {session?.name || session?.username}. Review the supplier information available to your role.</p></div><span className="role-pill">SUPPLIER</span></section><section className="role-card-grid supplier-card-grid">{supplierCards.map(([title, description, Icon, path]) => <Link to={path} key={title}><span><Icon size={19} /></span><h2>{title}</h2><small>{description}</small></Link>)}</section><section className="role-security"><PackageCheck size={20} /><div><strong>{suppliers.length} supplier records available</strong><p>Inventory mutations and purchase receiving remain restricted to inventory staff.</p></div></section></main></div>
+export default function SupplierDashboard() {
+  const { suppliers } = useApp(); const { session } = useAuth(); const [requests, setRequests] = useState([]); const [error, setError] = useState('')
+  useEffect(() => { reorderService.getAll().then(response => setRequests(response.data?.requests || [])).catch(requestError => setError(requestError.response?.data?.message || 'Unable to load replenishment requests.')) }, [])
+  return <div className="staff-workspace"><StaffNavbar /><main className="role-dashboard"><section className="role-heading"><div><p className="public-kicker">SUPPLIER WORKSPACE</p><h1>Senevirathna Pharmacy Supplier Dashboard</h1><p>Welcome back, {session?.name || session?.username}. Review replenishment requests and supplier records available to your role.</p></div><span className="role-pill">SUPPLIER</span></section><section className="role-card-grid supplier-card-grid"><Link to="/suppliers"><span><UserRound size={19} /></span><h2>Supplier profile</h2><small>Review supplier records.</small></Link><Link to="/suppliers"><span><Truck size={19} /></span><h2>Supplier directory</h2><small>Review contact information.</small></Link><Link to="/supplier-dashboard"><span><History size={19} /></span><h2>Request history</h2><small>Review replenishment activity.</small></Link><Link to="/suppliers"><span><PackageCheck size={19} /></span><h2>Authorized access</h2><small>Use the read-only supplier workspace.</small></Link></section><section className="role-security"><PackageCheck size={20} /><div><strong>{suppliers.length} supplier records available</strong><p>Inventory mutations and purchase receiving remain restricted to inventory staff.</p></div></section><section className="workflow-panel" style={{ marginTop: 'var(--space-6)' }}><h2>Replenishment requests ({requests.length})</h2>{error && <p className="public-auth-error">{error}</p>}{requests.length ? <div className="table-container"><table className="table"><thead><tr><th>Medicine</th><th>Supplier</th><th>Quantity</th><th>Status</th><th>Requested</th></tr></thead><tbody>{requests.map(request => <tr key={request.reorder_request_id}><td>{request.medicine_name}</td><td>{request.preferred_supplier_name || 'Unassigned'}</td><td>{request.requested_quantity}</td><td><span className="badge badge-neutral">{request.status}</span></td><td>{new Date(request.created_at).toLocaleString()}</td></tr>)}</tbody></table></div> : <p className="customer-record-empty">No replenishment requests yet.</p>}</section></main></div>
 }
-
-export default SupplierDashboard

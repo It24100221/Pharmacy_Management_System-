@@ -4,27 +4,29 @@ const ApiError = require('../middleware/errorHandler')
 class AuthRepository {
   async findUserById(userId) {
     const [rows] = await pool.execute(`
-      SELECT TOP 1 u.user_id, u.username, u.password, u.role,
+      SELECT TOP 1 u.user_id, u.username, u.password, UPPER(LTRIM(RTRIM(u.role))) AS role,
         c.id AS customer_id, c.first_name, c.last_name, c.email,
         s.staff_id, s.staff_name, s.email AS staff_email, s.phone AS staff_phone
       FROM users u
       LEFT JOIN customers c ON c.user_id = u.user_id
       LEFT JOIN staff s ON s.user_id = u.user_id
       WHERE u.user_id = ?
+        AND (UPPER(LTRIM(RTRIM(u.role))) <> 'CUSTOMER' OR c.is_active = 1)
     `, [userId])
     return rows[0] || null
   }
 
   async findUser(username, roles = []) {
-    const roleClause = roles.length ? ` AND u.role IN (${roles.map(() => '?').join(', ')})` : ''
+    const roleClause = roles.length ? ` AND UPPER(LTRIM(RTRIM(u.role))) IN (${roles.map(() => '?').join(', ')})` : ''
     const [rows] = await pool.execute(`
-      SELECT TOP 1 u.user_id, u.username, u.password, u.role,
+      SELECT TOP 1 u.user_id, u.username, u.password, UPPER(LTRIM(RTRIM(u.role))) AS role,
         c.id AS customer_id, c.first_name, c.last_name, c.email,
         s.staff_id, s.staff_name, s.email AS staff_email, s.phone AS staff_phone
       FROM users u
       LEFT JOIN customers c ON c.user_id = u.user_id
       LEFT JOIN staff s ON s.user_id = u.user_id
       WHERE (u.username = ? OR c.email = ? OR s.email = ?)${roleClause}
+        AND (UPPER(LTRIM(RTRIM(u.role))) <> 'CUSTOMER' OR c.is_active = 1)
     `, [username, username, username, ...roles])
     return rows[0] || null
   }

@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const supplierRepository = require('../repositories/supplierRepository');
 const SupplierValidator = require('../validators/supplierValidator');
+const { parsePagination, parsePositiveInteger, parseSearch } = require('../utils/requestValidation');
 
 class SupplierController {
   // GET /api/suppliers
@@ -8,12 +9,8 @@ class SupplierController {
   getAllSuppliers = asyncHandler(async (req, res) => {
     const { search, page, limit, pagination } = req.query;
 
-    const filters = {
-      search: search || undefined,
-      page: page,
-      limit: limit,
-      pagination: pagination === 'false' ? false : true
-    };
+    const paging = parsePagination(req.query);
+    const filters = { search: parseSearch(search), ...paging };
 
     const suppliers = await supplierRepository.findAll(filters);
     const total = await supplierRepository.getCount(filters);
@@ -24,10 +21,10 @@ class SupplierController {
       data: {
         suppliers,
         pagination: {
-          current_page: parseInt(page) || 1,
-          per_page: parseInt(limit) || 50,
+          current_page: paging.page,
+          per_page: paging.limit,
           total_items: total,
-          total_pages: Math.ceil(total / (parseInt(limit) || 50))
+          total_pages: Math.ceil(total / paging.limit)
         }
       }
     });
@@ -35,7 +32,7 @@ class SupplierController {
 
   // GET /api/suppliers/:id
   getSupplierById = asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parsePositiveInteger(req.params.id, 'supplier ID');
 
     const supplier = await supplierRepository.findById(id);
 
@@ -90,14 +87,7 @@ class SupplierController {
 
   // DELETE /api/suppliers/:id
   deleteSupplier = asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id, 10);
-
-    if (Number.isNaN(id) || id <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid supplier ID'
-      });
-    }
+    const id = parsePositiveInteger(req.params.id, 'supplier ID');
 
     await supplierRepository.remove(id);
 

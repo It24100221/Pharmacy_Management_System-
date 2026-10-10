@@ -27,6 +27,7 @@ BEGIN
       CONSTRAINT CK_categories_code_upper CHECK (category_code = UPPER(category_code))
     );
 END;
+GO
 
 IF NOT EXISTS (SELECT 1 FROM dbo.categories WHERE category_code = N'MEDICINE')
     INSERT dbo.categories (category_code, category_name) VALUES (N'MEDICINE', N'Medicine');
@@ -111,6 +112,7 @@ BEGIN
       )
     );
 END;
+GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.products') AND name = N'UQ_products_product_code')
     CREATE UNIQUE INDEX UQ_products_product_code ON dbo.products(product_code);

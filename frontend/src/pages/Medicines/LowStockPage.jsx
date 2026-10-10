@@ -1,20 +1,30 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Package, ArrowRight } from '../../components/common/Icons.jsx'
+import { AlertTriangle } from '../../components/common/Icons.jsx'
 import { useApp } from '../../context/AppContext.jsx'
+import { reorderService } from '../../services/apiService.js'
 
 const LowStockPage = () => {
-  const { medicines } = useApp()
+  const { medicines, suppliers, showToast } = useApp()
+  const [requestMedicine, setRequestMedicine] = useState(null)
+  const [supplierId, setSupplierId] = useState('')
+  const [requestedQuantity, setRequestedQuantity] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
 
+  const uniqueMedicines = useMemo(() => Array.from(new Map(medicines.map(medicine => [medicine.id, medicine])).values()), [medicines])
   const lowStockMeds = useMemo(() =>
-    medicines.filter(m => m.stockStatus === 'low_stock').sort((a, b) => a.quantity - b.quantity),
-    [medicines]
+    uniqueMedicines.filter(m => m.stockStatus === 'low_stock').sort((a, b) => a.quantity - b.quantity),
+    [uniqueMedicines]
   )
 
   const outOfStockMeds = useMemo(() =>
-    medicines.filter(m => m.stockStatus === 'out_of_stock').sort((a, b) => a.quantity - b.quantity),
-    [medicines]
+    uniqueMedicines.filter(m => m.stockStatus === 'out_of_stock').sort((a, b) => a.quantity - b.quantity),
+    [uniqueMedicines]
   )
+  const openRequest = medicine => { setRequestMedicine(medicine); setSupplierId(String(medicine.preferred_supplier_id || '')); setRequestedQuantity(String(Math.max(medicine.min_stock_level * 2 - medicine.quantity, 1))); setNotes('') }
+  const submitRequest = async event => { event.preventDefault(); if (!requestMedicine) return; setSaving(true); try { await reorderService.create({ medicine_id: requestMedicine.id, requested_quantity: Number(requestedQuantity), supplier_id: supplierId ? Number(supplierId) : null, notes }); showToast('Stock request saved', 'success'); setRequestMedicine(null) } catch (error) { showToast(error.response?.data?.message || 'Stock request could not be saved', 'error') } finally { setSaving(false) } }
+  const requestButton = medicine => <button className="btn btn-secondary btn-sm" onClick={() => openRequest(medicine)}>Request Stock</button>
 
   return (
     <div className="animate-fade-in">
@@ -28,11 +38,6 @@ const LowStockPage = () => {
             </div>
             <h1>Low Stock Medicines</h1>
             <p>Medicines requiring replenishment attention.</p>
-          </div>
-          <div className="page-header-actions">
-            <Link to="/purchases" className="btn btn-primary">
-              <Package size={18} /> Receive Stock <ArrowRight size={16} />
-            </Link>
           </div>
         </div>
       </div>
@@ -75,14 +80,14 @@ const LowStockPage = () => {
                 <tbody>
                   {outOfStockMeds.map(m => (
                     <tr key={m.id}>
-                      <td style={{ fontWeight: 600 }}>{m.name}</td>
+                      <td style={{ fontWeight: 600 }}>{m.name}<small style={{ display: 'block', color: 'var(--text-muted)', fontWeight: 400 }}>{m.productCode || m.medicine_number || `Medicine ID ${m.id}`}</small></td>
                       <td style={{ color: 'var(--text-secondary)' }}>{m.category}</td>
                       <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--danger)' }}>{m.quantity}</td>
                       <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{m.minStockLevel}</td>
                       <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--danger)' }}>-{m.minStockLevel}</td>
                       <td style={{ textAlign: 'center' }}><span className="badge badge-out-of-stock">OUT OF STOCK</span></td>
                       <td style={{ textAlign: 'center' }}>
-                        <Link to="/purchases" className="btn btn-primary btn-sm">Receive Stock</Link>
+                        <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'center', flexWrap: 'wrap' }}><Link to="/purchases" className="btn btn-primary btn-sm">Receive Stock</Link>{requestButton(m)}</div>
                       </td>
                     </tr>
                   ))}
@@ -113,14 +118,14 @@ const LowStockPage = () => {
                 <tbody>
                   {lowStockMeds.map(m => (
                     <tr key={m.id}>
-                      <td style={{ fontWeight: 600 }}>{m.name}</td>
+                      <td style={{ fontWeight: 600 }}>{m.name}<small style={{ display: 'block', color: 'var(--text-muted)', fontWeight: 400 }}>{m.productCode || m.medicine_number || `Medicine ID ${m.id}`}</small></td>
                       <td style={{ color: 'var(--text-secondary)' }}>{m.category}</td>
                       <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--warning)' }}>{m.quantity}</td>
                       <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{m.minStockLevel}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>-{m.minStockLevel - m.quantity}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--warning)' }}>{Math.max(0, m.minStockLevel - m.quantity)}</td>
                       <td style={{ textAlign: 'center' }}><span className="badge badge-low-stock">LOW STOCK</span></td>
                       <td style={{ textAlign: 'center' }}>
-                        <Link to="/purchases" className="btn btn-secondary btn-sm">Receive Stock</Link>
+                        <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'center', flexWrap: 'wrap' }}><Link to="/purchases" className="btn btn-secondary btn-sm">Receive Stock</Link>{requestButton(m)}</div>
                       </td>
                     </tr>
                   ))}
@@ -139,6 +144,7 @@ const LowStockPage = () => {
           </div>
         )}
       </div>
+      {requestMedicine && <div className="modal-backdrop" role="presentation" onClick={() => !saving && setRequestMedicine(null)}><form className="modal-card" onSubmit={submitRequest} onClick={event => event.stopPropagation()}><h2>Request stock</h2><p><strong>{requestMedicine.name}</strong> · Product ID {requestMedicine.productCode || requestMedicine.id}</p><p>Current eligible stock: {requestMedicine.quantity} · Minimum level: {requestMedicine.minStockLevel}</p><label className="form-label">Supplier<select className="form-control" value={supplierId} onChange={event => setSupplierId(event.target.value)}><option value="">No preferred supplier</option>{suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>)}</select></label><label className="form-label">Requested quantity<input className="form-control" type="number" min="1" value={requestedQuantity} onChange={event => setRequestedQuantity(event.target.value)} required /></label><label className="form-label">Notes<textarea className="form-control" rows="3" value={notes} onChange={event => setNotes(event.target.value)} /></label><div className="workflow-actions"><button type="button" className="btn btn-secondary" onClick={() => setRequestMedicine(null)}>Cancel</button><button className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Submit request'}</button></div></form></div>}
     </div>
   )
 }

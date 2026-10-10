@@ -33,6 +33,11 @@ export const medicineService = {
     const response = await api.get('/medicines/expiry-status', { params: { status } })
     return response.data
   },
+
+  getBatches: async (id, params = {}) => (await api.get(`/medicines/${id}/batches`, { params })).data,
+  getMovements: async (id, params = {}) => (await api.get(`/medicines/${id}/movements`, { params })).data,
+  createBatch: async (id, data) => (await api.post(`/medicines/${id}/batches`, data)).data,
+  adjustStock: async (id, data) => (await api.post(`/medicines/${id}/adjust-stock`, data)).data,
 }
 
 // ============================================================================
@@ -136,6 +141,9 @@ export const prescriptionService = {
   },
   getMine: async () => (await api.get('/prescriptions/mine')).data,
   getFile: async id => (await api.get(`/prescription-uploads/${id}/file`, { responseType: 'blob' })).data,
+  getUploadReviewQueue: async (status = 'pending') => (await api.get('/prescription-uploads/review-queue', { params: { status } })).data,
+  reviewUpload: async (id, decision, reason = '') => (await api.post(`/prescription-uploads/${id}/review`, { decision, reason })).data,
+  getReadyForBilling: async () => (await api.get('/prescriptions/ready-for-billing')).data,
   getAll: async (params = {}) => {
     const response = await api.get('/prescriptions', { params })
     return response.data
@@ -160,6 +168,7 @@ export const prescriptionService = {
     const response = await api.post(`/prescriptions/${id}/send-to-billing`, data)
     return response.data
   },
+  getBilling: async id => (await api.get(`/prescriptions/${id}/billing`)).data,
 }
 
 export const productService = {
@@ -180,9 +189,57 @@ export const orderService = {
   getMine: async () => (await api.get('/orders/mine')).data,
   getById: async id => (await api.get(`/orders/${id}`)).data,
   getPendingReview: async () => (await api.get('/orders/pending-review')).data,
+  getAwaitingReview: async () => (await api.get('/orders/awaiting-review')).data,
   getReadyForBilling: async () => (await api.get('/orders/ready-for-billing')).data,
   review: async (id, decision, reason = '') => (await api.post(`/orders/${id}/review`, { decision, reason })).data,
   completeSale: async (id, data) => (await api.post(`/orders/${id}/complete-sale`, data)).data,
+}
+
+export const notificationService = {
+  getAll: async (params = {}) => (await api.get('/notifications', { params })).data,
+  markRead: async id => (await api.patch(`/notifications/${id}/read`)).data,
+}
+
+export const billingService = {
+  getInvoices: async () => (await api.get('/billing/invoices')).data,
+  getAwaitingReview: async () => (await api.get('/billing/awaiting-review')).data,
+  getInvoiceBySale: async saleId => (await api.get(`/billing/sales/${saleId}/invoice`)).data,
+  recordPayment: async (invoiceId, data) => (await api.post(`/billing/invoices/${invoiceId}/payments`, data)).data,
+}
+
+export const purchaseOrderService = {
+  getAll: async () => (await api.get('/purchase-orders')).data,
+  getById: async id => (await api.get(`/purchase-orders/${id}`)).data,
+  create: async data => (await api.post('/purchase-orders', data)).data,
+  updateStatus: async (id, status) => (await api.patch(`/purchase-orders/${id}/status`, { status })).data,
+}
+
+export const reorderService = {
+  getLowStock: async () => (await api.get('/reorder-requests/low-stock')).data,
+  getAll: async (params = {}) => (await api.get('/reorder-requests', { params })).data,
+  create: async data => (await api.post('/reorder-requests', data)).data,
+  updateStatus: async (id, status) => (await api.patch(`/reorder-requests/${id}/status`, { status })).data,
+}
+
+export const supplierInquiryService = {
+  getAll: async (params = {}) => (await api.get('/supplier-inquiries', { params })).data,
+  getById: async id => (await api.get(`/supplier-inquiries/${id}`)).data,
+  create: async data => (await api.post('/supplier-inquiries', data)).data,
+  addMessage: async (id, message) => (await api.post(`/supplier-inquiries/${id}/messages`, { message })).data,
+  updateStatus: async (id, status) => (await api.patch(`/supplier-inquiries/${id}/status`, { status })).data,
+}
+
+export const goodsReceiptService = {
+  getAll: async () => (await api.get('/goods-receipts')).data,
+  getById: async id => (await api.get(`/goods-receipts/${id}`)).data,
+  create: async data => (await api.post('/goods-receipts', data)).data,
+}
+
+export const supplierInvoiceService = {
+  getAll: async (params = {}) => (await api.get('/supplier-invoices', { params })).data,
+  getById: async id => (await api.get(`/supplier-invoices/${id}`)).data,
+  create: async data => (await api.post('/supplier-invoices', data)).data,
+  recordPayment: async (id, data) => (await api.post(`/supplier-invoices/${id}/payments`, data)).data,
 }
 
 // ============================================================================
@@ -227,6 +284,13 @@ const apiServices = {
   product: productService,
   cart: cartService,
   order: orderService,
+  notification: notificationService,
+  billing: billingService,
+  purchaseOrder: purchaseOrderService,
+  reorder: reorderService,
+  supplierInquiry: supplierInquiryService,
+  goodsReceipt: goodsReceiptService,
+  supplierInvoice: supplierInvoiceService,
   sales: salesService,
 }
 

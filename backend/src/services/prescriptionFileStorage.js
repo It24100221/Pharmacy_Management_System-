@@ -9,10 +9,12 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const allowedTypes = Object.freeze({
   'image/jpeg': { extensions: ['.jpg', '.jpeg'], storedExtension: '.jpg' },
   'image/png': { extensions: ['.png'], storedExtension: '.png' },
+  'application/pdf': { extensions: ['.pdf'], storedExtension: '.pdf' },
 });
 
 const hasJpegSignature = buffer => buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
 const hasPngSignature = buffer => buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+const hasPdfSignature = buffer => buffer.length >= 5 && buffer.subarray(0, 5).equals(Buffer.from('%PDF-'));
 
 function validateAndDescribe(file) {
   if (!file || !Buffer.isBuffer(file.buffer) || !Number.isInteger(file.size)) {
@@ -29,7 +31,7 @@ function validateAndDescribe(file) {
   }
 
   const type = allowedTypes[file.declaredMimeType];
-  if (!type) throw new ApiError('Only JPEG and PNG prescription files are accepted; PDF is not supported', 415);
+  if (!type) throw new ApiError('Only PDF, JPEG, and PNG prescription files are accepted', 415);
 
   const normalizedOriginalName = String(file.originalName || '').replace(/\\/g, '/');
   const originalBaseName = path.posix.basename(normalizedOriginalName).replace(/[\u0000-\u001f\u007f]/g, '').trim();
@@ -40,7 +42,9 @@ function validateAndDescribe(file) {
 
   const signatureValid = file.declaredMimeType === 'image/jpeg'
     ? hasJpegSignature(file.buffer)
-    : hasPngSignature(file.buffer);
+    : file.declaredMimeType === 'image/png'
+      ? hasPngSignature(file.buffer)
+      : hasPdfSignature(file.buffer);
   if (!signatureValid) throw new ApiError('Prescription file content does not match its MIME type', 415);
 
   const storedFilename = `${crypto.randomUUID()}${type.storedExtension}`;
@@ -56,7 +60,7 @@ function validateAndDescribe(file) {
 function resolveStoragePath(storagePath) {
   if (!storagePath || typeof storagePath !== 'string') throw new ApiError('Prescription file is unavailable', 404);
   const normalized = storagePath.replace(/\\/g, '/');
-  if (!/^prescriptions\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png)$/i.test(normalized)) {
+  if (!/^prescriptions\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|pdf)$/i.test(normalized)) {
     throw new ApiError('Prescription file reference is invalid', 404);
   }
   const absolutePath = path.resolve(UPLOADS_ROOT, ...normalized.split('/'));

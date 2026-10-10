@@ -1,5 +1,7 @@
 const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
+const { allocateFefo } = require('../services/stockAllocation');
+const { todayInTimeZone } = require('../utils/requestValidation');
 
 class SaleRepository {
   // Get all sales
@@ -8,6 +10,7 @@ class SaleRepository {
       SELECT
         s.id,
         s.order_id,
+        s.prescription_id,
         s.sale_date,
         s.customer_id,
         s.total_amount,
@@ -71,6 +74,7 @@ class SaleRepository {
       SELECT
         s.id,
         s.order_id,
+        s.prescription_id,
         s.sale_date,
         s.customer_id,
         s.total_amount,
@@ -80,14 +84,15 @@ class SaleRepository {
         s.notes,
         s.created_at,
         s.updated_at,
-        c.id AS customer_id,
         c.first_name,
         c.last_name,
         c.phone AS customer_phone,
         c.email AS customer_email,
         c.address AS customer_address
+        ,ci.customer_invoice_id, ci.status AS invoice_status
       FROM sales s
       LEFT JOIN customers c ON s.customer_id = c.id
+      LEFT JOIN customer_invoices ci ON ci.sale_id = s.id
       WHERE s.id = ?
     `;
 
@@ -125,6 +130,10 @@ class SaleRepository {
 
   // Create sale with items (uses transaction)
   async createWithItems(saleData, items) {
+    if (saleData.idempotency_key) {
+      const [existing] = await pool.execute('SELECT TOP 1 id FROM sales WHERE idempotency_key = ?', [saleData.idempotency_key]);
+      if (existing[0]) return this.findById(existing[0].id);
+    }
     const connection = await pool.getConnection();
     let saleId;
 
@@ -138,6 +147,25 @@ class SaleRepository {
         );
         if (!orderRows[0]) throw new ApiError('Order is no longer ready for billing', 409);
         if (Number(orderRows[0].customer_id) !== Number(saleData.customer_id)) throw new ApiError('Order customer mismatch', 409);
+      }
+
+      let prescriptionItems = null;
+      if (saleData.prescription_id) {
+        const [prescriptions] = await connection.execute(
+          "SELECT id, customer_id, status FROM prescriptions WITH (UPDLOCK, ROWLOCK) WHERE id = ? AND status = 'READY_FOR_BILLING'",
+          [saleData.prescription_id]
+        );
+        const prescription = prescriptions[0];
+        if (!prescription) throw new ApiError('Prescription is not ready for billing or has already been dispensed', 409);
+        if (saleData.customer_id === null || saleData.customer_id === undefined) {
+          saleData.customer_id = Number(prescription.customer_id);
+        } else if (Number(prescription.customer_id) !== Number(saleData.customer_id)) {
+          throw new ApiError('Prescription customer mismatch', 409);
+        }
+        const [prescribed] = await connection.execute('SELECT medicine_id, quantity FROM prescription_items WHERE prescription_id = ?', [saleData.prescription_id]);
+        prescriptionItems = prescribed.map(item => ({ medicine_id: Number(item.medicine_id), quantity: Number(item.quantity) })).sort((a, b) => a.medicine_id - b.medicine_id);
+        const submitted = items.map(item => ({ medicine_id: Number(item.medicine_id), quantity: Number(item.quantity) })).sort((a, b) => a.medicine_id - b.medicine_id);
+        if (JSON.stringify(submitted) !== JSON.stringify(prescriptionItems)) throw new ApiError('Sale items must match the approved prescription', 409);
       }
 
       // 1. Validate and calculate totals
@@ -159,16 +187,18 @@ class SaleRepository {
           throw new ApiError(`Medicine with ID ${item.medicine_id} not found`, 404);
         }
 
-        if (medicine.is_expired) {
+        // Plan against locked batches. A legacy medicine-level expiry only
+        // blocks unallocated stock; valid, active batches may still be sold.
+        const [batches] = await connection.execute(`
+          SELECT batch_id, batch_number, expiry_date, quantity_available, is_active
+          FROM medicine_batches WITH (UPDLOCK, HOLDLOCK)
+          WHERE medicine_id = ? ORDER BY expiry_date, batch_id
+        `, [item.medicine_id]);
+        const today = todayInTimeZone();
+        const stockPlan = allocateFefo({ medicineName: medicine.name, requestedQuantity: item.quantity,
+          aggregateQuantity: medicine.quantity, batches, today });
+        if (medicine.is_expired && stockPlan.allocation.some(allocation => allocation.batchId === null)) {
           throw new ApiError(`Expired medicine "${medicine.name}" cannot be sold`, 409);
-        }
-
-        // Check if enough stock
-        if (medicine.quantity < item.quantity) {
-          throw new ApiError(
-            `Insufficient stock for "${medicine.name}". Available: ${medicine.quantity}, Requested: ${item.quantity}`,
-            409
-          );
         }
 
         // Validate quantity > 0
@@ -185,6 +215,7 @@ class SaleRepository {
           quantity: item.quantity,
           unit_price: unitPrice,
           line_total: lineTotal
+          ,allocation: stockPlan.allocation
         });
 
         totalAmount += lineTotal;
@@ -199,19 +230,23 @@ class SaleRepository {
       }
 
       // 2. Create sale header
+      const hasIdempotencyKey = Boolean(saleData.idempotency_key);
+      const hasPrescription = Boolean(saleData.prescription_id);
       const saleQuery = saleData.order_id ? `
-        INSERT INTO sales (customer_id, order_id, sale_date, total_amount, discount, final_amount, payment_method, notes)
+        INSERT INTO sales (customer_id, order_id${hasPrescription ? ', prescription_id' : ''}, sale_date, total_amount, discount, final_amount, payment_method, notes${hasIdempotencyKey ? ', idempotency_key' : ''})
         OUTPUT INSERTED.id AS insertId
-        VALUES (?, ?, NOW(), ?, ?, ?, ?, ?)
+        VALUES (?, ?${hasPrescription ? ', ?' : ''}, NOW(), ?, ?, ?, ?, ?${hasIdempotencyKey ? ', ?' : ''})
       ` : `
-        INSERT INTO sales (customer_id, sale_date, total_amount, discount, final_amount, payment_method, notes)
+        INSERT INTO sales (customer_id${hasPrescription ? ', prescription_id' : ''}, sale_date, total_amount, discount, final_amount, payment_method, notes${hasIdempotencyKey ? ', idempotency_key' : ''})
         OUTPUT INSERTED.id AS insertId
-        VALUES (?, NOW(), ?, ?, ?, ?, ?)
+        VALUES (?${hasPrescription ? ', ?' : ''}, NOW(), ?, ?, ?, ?, ?${hasIdempotencyKey ? ', ?' : ''})
       `;
 
       const saleParams = [saleData.customer_id || null];
       if (saleData.order_id) saleParams.push(saleData.order_id);
+      if (hasPrescription) saleParams.push(saleData.prescription_id);
       saleParams.push(totalAmount, discount, finalAmount, saleData.payment_method || 'Cash', saleData.notes || null);
+      if (hasIdempotencyKey) saleParams.push(saleData.idempotency_key);
       const [saleResult] = await connection.execute(saleQuery, saleParams);
 
       saleId = saleResult.insertId;
@@ -223,12 +258,6 @@ class SaleRepository {
       `;
 
       // Stock reduction query
-      const stockReduceQuery = `
-        UPDATE medicines
-        SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `;
-
       for (const item of validatedItems) {
         // Create sale item
         await connection.execute(itemQuery, [
@@ -239,8 +268,54 @@ class SaleRepository {
           item.line_total
         ]);
 
-        // Reduce stock
-        await connection.execute(stockReduceQuery, [item.quantity, item.medicine_id]);
+        for (const allocation of item.allocation) {
+          if (allocation.batchId !== null) {
+            const [batchUpdate] = await connection.execute(`UPDATE medicine_batches SET quantity_available = quantity_available - ?
+              WHERE batch_id = ? AND medicine_id = ? AND quantity_available >= ?;
+              SELECT @@ROWCOUNT AS affectedRows`,
+              [allocation.quantity, allocation.batchId, item.medicine_id, allocation.quantity]);
+            if (Number(batchUpdate[0]?.affectedRows) !== 1) throw new ApiError('Batch stock changed; please retry', 409);
+          }
+          const [medicineUpdate] = await connection.execute(`UPDATE medicines SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND quantity >= ?;
+            SELECT @@ROWCOUNT AS affectedRows`, [allocation.quantity, item.medicine_id, allocation.quantity]);
+          if (Number(medicineUpdate[0]?.affectedRows) !== 1) throw new ApiError('Aggregate stock changed; please retry', 409);
+          const [balanceRows] = await connection.execute('SELECT quantity AS balanceAfter FROM medicines WHERE id = ?', [item.medicine_id]);
+          const balanceAfter = Number(balanceRows[0]?.balanceAfter);
+          if (!Number.isFinite(balanceAfter)) throw new ApiError('Unable to determine updated stock balance', 500);
+          await connection.execute(`
+            INSERT INTO stock_movements
+              (medicine_id, batch_id, movement_type, quantity_delta, balance_after, reference_type, reference_id, idempotency_key, notes, created_by)
+            VALUES (?, ?, 'SALE', ?, ?, 'SALE', ?, ?, ?, ?)
+          `, [item.medicine_id, allocation.batchId, -allocation.quantity, balanceAfter, saleId,
+            `sale:${saleId}:medicine:${item.medicine_id}:batch:${allocation.batchId || 'legacy'}`,
+            saleData.notes || null, saleData.actor_user_id || null]);
+        }
+      }
+
+      // Every completed sale gets one durable invoice. Payment confirmation is
+      // deliberately handled separately so Card/Online is never treated as
+      // externally settled merely because a method was selected.
+      await connection.execute(`
+        INSERT INTO customer_invoices (sale_id, customer_id, subtotal, discount_amount, tax_amount, total_amount, status)
+        VALUES (?, ?, ?, ?, 0, ?, 'UNPAID')
+      `, [saleId, saleData.customer_id || null, totalAmount, discount, finalAmount]);
+
+      if (String(saleData.payment_method || 'Cash').toUpperCase() === 'CASH') {
+        if (!saleData.actor_user_id) throw new ApiError('A staff identity is required for cash payment', 400);
+        const [invoiceRows] = await connection.execute('SELECT customer_invoice_id FROM customer_invoices WHERE sale_id = ?', [saleId]);
+        const invoiceId = invoiceRows[0]?.customer_invoice_id;
+        if (finalAmount > 0) {
+          await connection.execute(`
+            INSERT INTO customer_payments (customer_invoice_id, amount, payment_method, status, idempotency_key, created_by, confirmed_at)
+            VALUES (?, ?, 'CASH', 'CONFIRMED', ?, ?, SYSDATETIME())
+          `, [invoiceId, finalAmount, `payment:sale:${saleId}`, saleData.actor_user_id]);
+        }
+        await connection.execute("UPDATE customer_invoices SET status = 'PAID' WHERE customer_invoice_id = ?", [invoiceId]);
+        await connection.execute("UPDATE sales SET payment_status = 'PAID', updated_at = SYSDATETIME() WHERE id = ?", [saleId]);
+        if (hasPrescription) {
+          await connection.execute("UPDATE prescriptions SET status = 'DISPENSED', dispensed_at = SYSDATETIME(), reviewer_user_id = ? WHERE id = ? AND status = 'READY_FOR_BILLING'", [saleData.actor_user_id, saleData.prescription_id]);
+        }
       }
 
       if (saleData.order_id) {

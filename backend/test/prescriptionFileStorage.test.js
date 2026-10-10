@@ -24,6 +24,7 @@ const PNG_BYTES = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
   'base64'
 );
+const PDF_BYTES = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n');
 
 let fixtureDirectory;
 
@@ -31,6 +32,7 @@ test.before(async () => {
   fixtureDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'prescription-storage-test-'));
   await fs.writeFile(path.join(fixtureDirectory, 'sample.jpg'), JPEG_BYTES);
   await fs.writeFile(path.join(fixtureDirectory, 'sample.png'), PNG_BYTES);
+  await fs.writeFile(path.join(fixtureDirectory, 'sample.pdf'), PDF_BYTES);
 });
 
 test.after(async () => {
@@ -44,11 +46,11 @@ async function fixture(name, mimeType) {
   return { buffer, originalName: name, declaredMimeType: mimeType, size: buffer.length };
 }
 
-test('actual JPEG and PNG files are stored under generated names and round-trip exactly', async () => {
-  for (const [name, mimeType] of [['sample.jpg', 'image/jpeg'], ['sample.png', 'image/png']]) {
+test('actual PDF, JPEG, and PNG files are stored under generated names and round-trip exactly', async () => {
+  for (const [name, mimeType] of [['sample.jpg', 'image/jpeg'], ['sample.png', 'image/png'], ['sample.pdf', 'application/pdf']]) {
     const file = await fixture(name, mimeType);
     const metadata = storage.validateAndDescribe(file);
-    assert.match(metadata.storedFilename, /^[0-9a-f-]+\.(jpg|png)$/i);
+    assert.match(metadata.storedFilename, /^[0-9a-f-]+\.(jpg|png|pdf)$/i);
     assert.notEqual(metadata.storedFilename, name);
     assert.equal(path.isAbsolute(metadata.storagePath), false);
     assert.match(metadata.storagePath, /^prescriptions\//);
@@ -62,7 +64,7 @@ test('actual JPEG and PNG files are stored under generated names and round-trip 
   }
 });
 
-test('unsupported, empty, oversized, mismatched, and PDF files are rejected server-side', async () => {
+test('unsupported, empty, oversized, and mismatched files are rejected server-side', async () => {
   assert.throws(
     () => storage.validateAndDescribe({ buffer: Buffer.from('text'), originalName: 'note.txt', declaredMimeType: 'text/plain', size: 4 }),
     error => error.statusCode === 415
@@ -80,10 +82,9 @@ test('unsupported, empty, oversized, mismatched, and PDF files are rejected serv
     () => storage.validateAndDescribe({ buffer: PNG_BYTES, originalName: 'fake.jpg', declaredMimeType: 'image/jpeg', size: PNG_BYTES.length }),
     error => error.statusCode === 415
   );
-  const pdf = Buffer.from('%PDF-1.4\n');
   assert.throws(
-    () => storage.validateAndDescribe({ buffer: pdf, originalName: 'scan.pdf', declaredMimeType: 'application/pdf', size: pdf.length }),
-    error => error.statusCode === 415 && /PDF is not supported/.test(error.message)
+    () => storage.validateAndDescribe({ buffer: Buffer.from('not-a-pdf'), originalName: 'scan.pdf', declaredMimeType: 'application/pdf', size: 9 }),
+    error => error.statusCode === 415
   );
 });
 

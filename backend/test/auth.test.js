@@ -116,6 +116,18 @@ test('valid token restores the canonical current database identity', async () =>
   });
 });
 
+test('role casing and whitespace are canonicalized for customer authorization', async () => {
+  currentUser = { user_id: 7, customer_id: 12, username: 'customer-test', role: ' customer ' };
+  const result = await invokeAuthentication(`Bearer ${validToken()}`);
+  assert.equal(result.res.statusCode, 200);
+  assert.equal(result.req.user.role, 'CUSTOMER');
+  const res = responseRecorder();
+  let nextCalled = false;
+  authorizeRoles('CUSTOMER')(result.req, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+  currentUser = { user_id: 7, customer_id: 12, username: 'customer-test', role: 'CUSTOMER' };
+});
+
 test('token for an unknown or deleted user is rejected with 401', async () => {
   currentUser = null;
   const result = await invokeAuthentication(`Bearer ${validToken()}`);
@@ -131,4 +143,16 @@ test('authenticated role outside the allow-list is rejected with 403', () => {
   authorizeRoles('ADMIN', 'PHARMACIST')(req, res, () => { nextCalled = true; });
   assert.equal(res.statusCode, 403);
   assert.equal(nextCalled, false);
+});
+
+test('normalized pharmacist role is allowed to use the send-to-billing role gate', async () => {
+  currentUser = { user_id: 7, customer_id: null, username: 'pharmacist-test', role: ' pharmacist ' };
+  const result = await invokeAuthentication(`Bearer ${validToken()}`);
+  assert.equal(result.req.user.role, 'PHARMACIST');
+  const res = responseRecorder();
+  let nextCalled = false;
+  authorizeRoles('ADMIN', 'PHARMACIST')(result.req, res, () => { nextCalled = true; });
+  assert.equal(res.statusCode, 200);
+  assert.equal(nextCalled, true);
+  currentUser = { user_id: 7, customer_id: 12, username: 'customer-test', role: 'CUSTOMER' };
 });

@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { classifyApiError } from '../src/services/api.js'
 import authService, { isUsableSession, SENSITIVE_CACHE_KEYS, SESSION_KEY } from '../src/services/authService.js'
-import { AUTH_STATES, DASHBOARD_PATHS, DATA_SCOPES } from '../src/config/authorization.js'
+import { AUTH_STATES, DASHBOARD_PATHS, DATA_SCOPES, canManageSuppliers, normalizeRole } from '../src/config/authorization.js'
 
 const token = secondsFromNow => {
   const payload = Buffer.from(JSON.stringify({ userId: 1, exp: Math.floor(Date.now() / 1000) + secondsFromNow })).toString('base64url')
@@ -67,4 +67,27 @@ test('every persisted role has an explicit dashboard and least-privilege data sc
   assert.deepEqual(DATA_SCOPES.SUPPLIER, ['suppliers'])
   assert.equal(DATA_SCOPES.INVENTORY.includes('sales'), false)
   assert.equal(DATA_SCOPES.SALES.includes('suppliers'), false)
+})
+
+test('only administrator and inventory roles can manage suppliers', () => {
+  assert.equal(canManageSuppliers('ADMIN'), true)
+  assert.equal(canManageSuppliers('INVENTORY'), true)
+  assert.equal(canManageSuppliers('SUPPLIER'), false)
+  assert.equal(canManageSuppliers(undefined), false)
+})
+
+test('customer role casing is normalized before route and dashboard checks', () => {
+  assert.equal(normalizeRole(' customer '), 'CUSTOMER')
+  assert.equal(authService.getDashboardPath(' customer '), '/customer-dashboard')
+  const values = installLocalStorage()
+  authService.saveSession({ token: token(300), userId: 12, role: ' customer ', customerId: 44 })
+  const saved = JSON.parse(values.get(SESSION_KEY))
+  assert.equal(saved.role, 'CUSTOMER')
+})
+
+test('stored customer sessions are normalized even when the API is unavailable', () => {
+  installLocalStorage({
+    [SESSION_KEY]: JSON.stringify({ token: token(300), userId: 12, role: ' customer ', customerId: 44 }),
+  })
+  assert.equal(authService.getSession().role, 'CUSTOMER')
 })

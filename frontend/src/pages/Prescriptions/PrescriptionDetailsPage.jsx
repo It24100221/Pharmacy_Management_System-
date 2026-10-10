@@ -36,6 +36,7 @@ const PrescriptionDetailsPage = () => {
   }
 
   const sendToBilling = async () => {
+    if (prescription.status === 'DISPENSED') { showToast('This prescription has already been dispensed.', 'info'); return }
     const billingItems = (prescription.items || [])
       .filter(item => {
         const med = medicines.find(m => m.id === item.medicine_id)
@@ -62,12 +63,7 @@ const PrescriptionDetailsPage = () => {
       showToast('No available prescription items can be sent to billing', 'error')
       return
     }
-    navigate('/sales', {
-      state: {
-        prescriptionItems: result.data.items,
-        prescriptionCustomer: result.data.customer,
-      },
-    })
+    navigate(`/sales?prescriptionId=${result.data.prescriptionId || prescription.id}`)
   }
 
   return (
@@ -86,8 +82,8 @@ const PrescriptionDetailsPage = () => {
             <button className="btn btn-ghost" onClick={() => navigate('/')}>
               <ArrowLeft size={18} /> Back
             </button>
-            <button className="btn btn-primary" onClick={sendToBilling}>
-              <Send size={18} /> Send to Billing
+            <button className="btn btn-primary" onClick={sendToBilling} disabled={prescription.status === 'DISPENSED'}>
+              <Send size={18} /> {prescription.status === 'DISPENSED' ? 'Dispensed' : 'Send to Billing'}
             </button>
           </div>
         </div>
@@ -107,6 +103,7 @@ const PrescriptionDetailsPage = () => {
                 <strong>Instructions:</strong> {prescription.instructions}
               </div>
             )}
+            {prescription.sale_id && <p style={{ marginTop: 'var(--space-4)' }}>Linked sale: <Link to={`/sales/receipt/${prescription.sale_id}`}>Receipt REC-{String(prescription.sale_id).padStart(6, '0')}</Link></p>}
           </div>
         </div>
 

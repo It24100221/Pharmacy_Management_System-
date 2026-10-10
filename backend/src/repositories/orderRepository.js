@@ -8,7 +8,7 @@ const orderSelect = `
     o.reviewer_user_id, o.reviewed_at, o.rejection_reason, o.created_at, o.updated_at,
     CONCAT(c.first_name, ' ', c.last_name) AS customer_name, c.email AS customer_email,
     c.phone AS customer_phone, c.address AS customer_address,
-    pu.prescription_id, pu.status AS prescription_status,
+    pu.prescription_id, pu.status AS prescription_status, pu.uploaded_date AS prescription_uploaded_at,
     CASE WHEN pu.storage_path IS NOT NULL THEN CONCAT('/api/prescription-uploads/', pu.prescription_id, '/file') ELSE NULL END AS prescription_file_url,
     s.id AS sale_id
   FROM orders o
@@ -122,13 +122,13 @@ class OrderRepository {
           UPDATE orders SET status = 'READY_FOR_BILLING', reviewer_user_id = ?, reviewed_at = SYSDATETIME(), rejection_reason = NULL
           WHERE order_id = ?
         `, [reviewerUserId, orderId]);
-        await connection.execute("UPDATE prescription_uploads SET status = 'APPROVED' WHERE order_id = ?", [orderId]);
+        await connection.execute("UPDATE prescription_uploads SET status = 'APPROVED', reviewer_user_id = ?, reviewed_at = SYSDATETIME(), rejection_reason = NULL WHERE order_id = ?", [reviewerUserId, orderId]);
       } else {
         await connection.execute(`
           UPDATE orders SET status = 'REJECTED', reviewer_user_id = ?, reviewed_at = SYSDATETIME(), rejection_reason = ?
           WHERE order_id = ?
         `, [reviewerUserId, reason || null, orderId]);
-        await connection.execute("UPDATE prescription_uploads SET status = 'REJECTED' WHERE order_id = ?", [orderId]);
+        await connection.execute("UPDATE prescription_uploads SET status = 'REJECTED', reviewer_user_id = ?, reviewed_at = SYSDATETIME(), rejection_reason = ? WHERE order_id = ?", [reviewerUserId, reason || null, orderId]);
       }
       await connection.commit();
     } catch (error) {

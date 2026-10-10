@@ -1,4 +1,6 @@
-# Known Defects — Full-System QA
+# Known Defects — Full-System QA (Historical Register)
+
+> **Superseded status (2026-10-10):** This register describes the 2026-10-03 pre-fix audit. The current source includes the listed remediation work. Use [FINAL_EVALUATION_READINESS.md](../FINAL_EVALUATION_READINESS.md) and the current evidence under `qa-audit/evidence/` for the verified status. Remaining limitations are explicitly listed there.
 
 Audit date: 2026-10-03  
 Audited branch: `dev`  

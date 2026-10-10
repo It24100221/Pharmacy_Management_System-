@@ -2,6 +2,99 @@ const { pool } = require('../config/database');
 const ApiError = require('../middleware/errorHandler');
 
 class MedicineRepository {
+  async findBatches(medicineId, { includeExpired = true } = {}) {
+    const expiryFilter = includeExpired ? '' : ' AND expiry_date >= CAST(GETDATE() AS date)';
+    const [rows] = await pool.execute(`
+      SELECT batch_id, medicine_id, batch_number, expiry_date, quantity_available,
+        unit_cost, received_at, is_active,
+        CASE WHEN expiry_date < CAST(GETDATE() AS date) THEN 1 ELSE 0 END AS is_expired
+      FROM medicine_batches
+      WHERE medicine_id = ?${expiryFilter}
+      ORDER BY expiry_date ASC, batch_id ASC
+    `, [medicineId]);
+    return rows;
+  }
+
+  async findStockMovements(medicineId, limit = 100) {
+    const [rows] = await pool.execute(`
+      SELECT TOP (?) movement_id, medicine_id, batch_id, movement_type, quantity_delta,
+        balance_after, reference_type, reference_id, idempotency_key, notes, created_by, created_at
+      FROM stock_movements WHERE medicine_id = ?
+      ORDER BY created_at DESC, movement_id DESC
+    `, [limit, medicineId]);
+    return rows;
+  }
+
+  async createBatch(medicineId, data, actorUserId) {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [medicineRows] = await connection.execute('SELECT id FROM medicines WITH (UPDLOCK, HOLDLOCK) WHERE id = ?', [medicineId]);
+      if (!medicineRows[0]) throw new ApiError('Medicine not found', 404);
+      const [existing] = await connection.execute('SELECT batch_id FROM medicine_batches WITH (UPDLOCK, HOLDLOCK) WHERE medicine_id = ? AND batch_number = ?', [medicineId, data.batch_number]);
+      if (existing[0]) throw new ApiError('Batch number already exists for this medicine', 409);
+      const [created] = await connection.execute(`
+        INSERT INTO medicine_batches (medicine_id, batch_number, expiry_date, quantity_available, unit_cost)
+        VALUES (?, ?, ?, 0, ?);
+        SELECT CAST(SCOPE_IDENTITY() AS INT) AS batch_id;
+      `, [medicineId, data.batch_number, data.expiry_date, data.unit_cost ?? null]);
+      await connection.commit();
+      return { batch_id: created.batch_id, medicine_id: medicineId, batch_number: data.batch_number, expiry_date: data.expiry_date, quantity_available: 0, unit_cost: data.unit_cost ?? null, created_by: actorUserId };
+    } catch (error) {
+      try { await connection.rollback(); } catch { /* preserve original error */ }
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async adjustStock(medicineId, { batch_id: batchId, quantity_delta: quantityDelta, reason, idempotency_key: idempotencyKey }, actorUserId) {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [existingMovement] = await connection.execute('SELECT TOP (1) movement_id, medicine_id, batch_id, quantity_delta, balance_after, notes, created_at FROM stock_movements WHERE idempotency_key = ?', [idempotencyKey]);
+      if (existingMovement[0]) {
+        await connection.rollback();
+        return { duplicate: true, movement: existingMovement[0] };
+      }
+
+      const [medicineRows] = await connection.execute('SELECT id, quantity FROM medicines WITH (UPDLOCK, HOLDLOCK) WHERE id = ?', [medicineId]);
+      if (!medicineRows[0]) throw new ApiError('Medicine not found', 404);
+      let batch = null;
+      if (batchId !== null && batchId !== undefined) {
+        const [batchRows] = await connection.execute('SELECT batch_id, medicine_id, quantity_available FROM medicine_batches WITH (UPDLOCK, HOLDLOCK) WHERE batch_id = ?', [batchId]);
+        batch = batchRows[0];
+        if (!batch || Number(batch.medicine_id) !== Number(medicineId)) throw new ApiError('Batch not found for this medicine', 404);
+        const [updatedBatch] = await connection.execute(`
+          UPDATE medicine_batches
+          SET quantity_available = quantity_available + ?
+          WHERE batch_id = ? AND quantity_available + ? >= 0;
+          SELECT @@ROWCOUNT AS affectedRows;
+        `, [quantityDelta, batchId, quantityDelta]);
+        if (Number(updatedBatch[0]?.affectedRows) !== 1) throw new ApiError('Stock adjustment would make batch quantity negative', 409);
+      }
+
+      const [updatedMedicine] = await connection.execute(`
+        UPDATE medicines SET quantity = quantity + ?
+        WHERE id = ? AND quantity + ? >= 0;
+        SELECT @@ROWCOUNT AS affectedRows;
+      `, [quantityDelta, medicineId, quantityDelta]);
+      if (Number(updatedMedicine[0]?.affectedRows) !== 1) throw new ApiError('Stock adjustment would make aggregate quantity negative', 409);
+      const [balanceRows] = await connection.execute('SELECT quantity AS balance_after FROM medicines WHERE id = ?', [medicineId]);
+      const balanceAfter = Number(balanceRows[0]?.balance_after ?? 0);
+      await connection.execute(`
+        INSERT INTO stock_movements (medicine_id, batch_id, movement_type, quantity_delta, balance_after, reference_type, idempotency_key, notes, created_by)
+        VALUES (?, ?, 'ADJUSTMENT', ?, ?, 'ADJUSTMENT', ?, ?, ?)
+      `, [medicineId, batchId ?? null, quantityDelta, balanceAfter, idempotencyKey, reason, actorUserId || null]);
+      await connection.commit();
+      return { duplicate: false, movement: { medicine_id: medicineId, batch_id: batchId ?? null, quantity_delta: quantityDelta, balance_after: balanceAfter, notes: reason, idempotency_key: idempotencyKey } };
+    } catch (error) {
+      try { await connection.rollback(); } catch { /* preserve original error */ }
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
   // Get all medicines with optional filters
   async findAll(filters = {}) {
     let query = `
@@ -124,7 +217,8 @@ class MedicineRepository {
   }
 
   // Create new medicine
-  async create(medicineData) {
+  async create(medicineData, actorUserId) {
+    const connection = await pool.getConnection();
     const query = `
       DECLARE @created TABLE (insertId INT);
       INSERT INTO medicines (
@@ -148,31 +242,110 @@ class MedicineRepository {
       medicineData.min_stock_level ?? 10
     ];
 
-    const [rows] = await pool.execute(query, values);
-    return rows[0].insertId;
+    try {
+      await connection.beginTransaction();
+      const [duplicates] = await connection.execute(`
+        SELECT TOP (1) id FROM medicines WITH (UPDLOCK, HOLDLOCK)
+        WHERE LOWER(LTRIM(RTRIM(name))) = LOWER(LTRIM(RTRIM(?)))
+          AND LOWER(LTRIM(RTRIM(COALESCE(generic_name, '')))) = LOWER(LTRIM(RTRIM(COALESCE(?, ''))))
+          AND LOWER(LTRIM(RTRIM(COALESCE(manufacturer, '')))) = LOWER(LTRIM(RTRIM(COALESCE(?, ''))))
+      `, [medicineData.name, medicineData.generic_name || null, medicineData.manufacturer || null]);
+      if (duplicates[0]) throw new ApiError('A medicine with the same name, generic name, and manufacturer already exists', 409);
+      const [rows] = await connection.execute(query, values);
+      const medicineId = rows[0].insertId;
+
+      if (medicineData.quantity > 0) {
+        const [batchRows] = await connection.execute(`
+          INSERT INTO medicine_batches (
+            medicine_id, batch_number, expiry_date, quantity_available, unit_cost
+          ) VALUES (?, ?, ?, ?, ?);
+          SELECT CAST(SCOPE_IDENTITY() AS INT) AS batch_id;
+        `, [
+          medicineId,
+          medicineData.batch_number,
+          medicineData.expiry_date,
+          medicineData.quantity,
+          null
+        ]);
+        const batchId = batchRows.batch_id;
+
+        await connection.execute(`
+          INSERT INTO stock_movements (
+            medicine_id, batch_id, movement_type, quantity_delta, balance_after,
+            reference_type, reference_id, idempotency_key, notes, created_by
+          ) VALUES (?, ?, 'OPENING', ?, ?, 'MEDICINE', ?, ?, ?, ?)
+        `, [
+          medicineId,
+          batchId,
+          medicineData.quantity,
+          medicineData.quantity,
+          medicineId,
+          `medicine-opening:${medicineId}`,
+          'Opening stock recorded at medicine creation',
+          actorUserId || null
+        ]);
+      }
+
+      await connection.commit();
+      return medicineId;
+    } catch (error) {
+      try { await connection.rollback(); } catch { /* preserve original error */ }
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   // Update medicine
   async update(id, medicineData) {
-    // First check if medicine exists
-    const existing = await this.findById(id);
-    if (!existing) {
-      throw new ApiError('Medicine not found', 404);
-    }
-
     const allowedFields = [
       'name', 'description', 'generic_name', 'manufacturer', 'category',
-      'batch_number', 'quantity', 'unit_price', 'expiry_date', 'min_stock_level'
+      'batch_number', 'unit_price', 'expiry_date', 'min_stock_level'
     ];
     const fields = allowedFields.filter(field => Object.hasOwn(medicineData, field));
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [existingRows] = await connection.execute(
+        'SELECT id, name, generic_name, manufacturer FROM medicines WITH (UPDLOCK, HOLDLOCK) WHERE id = ?',
+        [id]
+      );
+      const existing = existingRows[0];
+      if (!existing) throw new ApiError('Medicine not found', 404);
 
-    if (fields.length > 0) {
-      const assignments = fields.map(field => `${field} = ?`).join(', ');
-      const values = fields.map(field => medicineData[field]);
-      values.push(id);
-      await pool.execute(`UPDATE medicines SET ${assignments} WHERE id = ?`, values);
+      const identity = {
+        name: Object.hasOwn(medicineData, 'name') ? medicineData.name : existing.name,
+        generic_name: Object.hasOwn(medicineData, 'generic_name') ? medicineData.generic_name : existing.generic_name,
+        manufacturer: Object.hasOwn(medicineData, 'manufacturer') ? medicineData.manufacturer : existing.manufacturer
+      };
+      const normalize = value => String(value || '').trim().toLowerCase();
+      const identityChanged = normalize(identity.name) !== normalize(existing.name)
+        || normalize(identity.generic_name) !== normalize(existing.generic_name)
+        || normalize(identity.manufacturer) !== normalize(existing.manufacturer);
+      if (identityChanged) {
+        const [duplicates] = await connection.execute(`
+          SELECT TOP (1) id FROM medicines WITH (UPDLOCK, HOLDLOCK)
+          WHERE id <> ?
+            AND LOWER(LTRIM(RTRIM(name))) = LOWER(LTRIM(RTRIM(?)))
+            AND LOWER(LTRIM(RTRIM(COALESCE(generic_name, '')))) = LOWER(LTRIM(RTRIM(COALESCE(?, ''))))
+            AND LOWER(LTRIM(RTRIM(COALESCE(manufacturer, '')))) = LOWER(LTRIM(RTRIM(COALESCE(?, ''))))
+        `, [id, identity.name, identity.generic_name || null, identity.manufacturer || null]);
+        if (duplicates[0]) throw new ApiError('A medicine with the same name, generic name, and manufacturer already exists', 409);
+      }
+
+      if (fields.length > 0) {
+        const assignments = fields.map(field => `${field} = ?`).join(', ');
+        const values = fields.map(field => medicineData[field]);
+        values.push(id);
+        await connection.execute(`UPDATE medicines SET ${assignments} WHERE id = ?`, values);
+      }
+      await connection.commit();
+    } catch (error) {
+      try { await connection.rollback(); } catch { /* preserve original error */ }
+      throw error;
+    } finally {
+      connection.release();
     }
-
     return this.findById(id);
   }
 

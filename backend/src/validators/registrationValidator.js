@@ -6,6 +6,13 @@ const PHONE_PATTERN = /^\+?[0-9][0-9 ()-]{5,18}[0-9]$/;
 
 class RegistrationValidator {
   static validate(data = {}) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) data = {};
+    const requiredTextFields = ['name', 'email', 'phone', 'address', 'username', 'password'];
+    const wrongTypes = requiredTextFields.filter(field => typeof data[field] !== 'string');
+    if (wrongTypes.length) throw new ApiError(`${wrongTypes.join(', ')} must be text`, 400);
+    if (data.confirmPassword !== undefined && typeof data.confirmPassword !== 'string') {
+      throw new ApiError('confirmPassword must be text', 400);
+    }
     const name = String(data.name || '').trim().replace(/\s+/g, ' ');
     const email = String(data.email || '').trim().toLowerCase();
     const phone = String(data.phone || '').trim();

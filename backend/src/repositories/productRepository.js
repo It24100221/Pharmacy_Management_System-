@@ -73,6 +73,15 @@ class ProductRepository {
     return rows[0] || null;
   }
 
+  async updateImage(productId, metadata) {
+    await pool.execute(`
+      UPDATE products SET image_original_filename = ?, image_stored_filename = ?, image_path = ?, image_mime_type = ?, image_file_size = ?, updated_at = SYSDATETIME()
+      WHERE product_id = ?
+    `, [metadata.originalFilename, metadata.storedFilename, metadata.storagePath, metadata.mimeType, metadata.fileSize, productId]);
+    const [rows] = await pool.execute(`${selectCatalogueFields} WHERE pc.product_id = ?`, [productId]);
+    return rows[0] || null;
+  }
+
   async findCategories() {
     const [rows] = await pool.execute(`
       SELECT category_code, category_name

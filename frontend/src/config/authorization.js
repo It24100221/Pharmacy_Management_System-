@@ -32,3 +32,6 @@ export const DATA_SCOPES = Object.freeze({
   SALES: ['medicines', 'customers', 'sales'],
   SUPPLIER: ['suppliers'],
 })
+
+export const normalizeRole = role => String(role ?? '').trim().toUpperCase()
+export const canManageSuppliers = role => ['ADMIN', 'INVENTORY'].includes(normalizeRole(role))

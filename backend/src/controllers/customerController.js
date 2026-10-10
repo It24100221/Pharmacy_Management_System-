@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const customerRepository = require('../repositories/customerRepository');
 const CustomerValidator = require('../validators/customerValidator');
+const { parsePagination, parsePositiveInteger, parseSearch } = require('../utils/requestValidation');
 
 class CustomerController {
   getCurrentCustomer = asyncHandler(async (req, res) => {
@@ -22,12 +23,8 @@ class CustomerController {
   getAllCustomers = asyncHandler(async (req, res) => {
     const { search, page, limit, pagination } = req.query;
 
-    const filters = {
-      search: search || undefined,
-      page: page,
-      limit: limit,
-      pagination: pagination === 'false' ? false : true
-    };
+    const paging = parsePagination(req.query);
+    const filters = { search: parseSearch(search), ...paging };
 
     const customers = await customerRepository.findAll(filters);
     const total = await customerRepository.getCount(filters);
@@ -38,10 +35,10 @@ class CustomerController {
       data: {
         customers,
         pagination: {
-          current_page: parseInt(page) || 1,
-          per_page: parseInt(limit) || 50,
+          current_page: paging.page,
+          per_page: paging.limit,
           total_items: total,
-          total_pages: Math.ceil(total / (parseInt(limit) || 50))
+          total_pages: Math.ceil(total / paging.limit)
         }
       }
     });
@@ -49,7 +46,7 @@ class CustomerController {
 
   // GET /api/customers/:id
   getCustomerById = asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parsePositiveInteger(req.params.id, 'customer ID');
 
     const customer = await customerRepository.findById(id);
 
@@ -104,20 +101,13 @@ class CustomerController {
 
   // DELETE /api/customers/:id
   deleteCustomer = asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id, 10);
+    const id = parsePositiveInteger(req.params.id, 'customer ID');
 
-    if (Number.isNaN(id) || id <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid customer ID'
-      });
-    }
-
-    await customerRepository.remove(id);
+    const result = await customerRepository.remove(id);
 
     res.json({
       success: true,
-      message: 'Customer deleted successfully'
+      message: result?.deactivated ? 'Customer deactivated successfully' : 'Customer deleted successfully'
     });
   });
 }

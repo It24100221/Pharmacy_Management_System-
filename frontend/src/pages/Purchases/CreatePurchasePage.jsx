@@ -1,29 +1,41 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useApp } from '../../context/AppContext.jsx'
+import { medicineService } from '../../services/apiService.js'
 import { formatLKR } from '../../data/mockMedicines.js'
 import { Package, Search, Trash2, Check, ArrowLeft } from '../../components/common/Icons.jsx'
+
+const getTodayDate = () => {
+  const now = new Date()
+  const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
+  return localDate.toISOString().split('T')[0]
+}
 
 const CreatePurchasePage = () => {
   const navigate = useNavigate()
   const { suppliers, medicines, receiveStock, showToast } = useApp()
+  const today = getTodayDate()
   const [selectedSupplier, setSelectedSupplier] = useState('')
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0])
+  const [purchaseDate, setPurchaseDate] = useState(today)
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState([])
   const [searchMedicine, setSearchMedicine] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const filteredMedicines = searchMedicine.length >= 2
     ? medicines.filter(m => m.name.toLowerCase().includes(searchMedicine.toLowerCase()) || m.genericName?.toLowerCase().includes(searchMedicine.toLowerCase()) || m.productCode.toLowerCase().includes(searchMedicine.toLowerCase())).slice(0, 8)
     : []
 
-  const addItem = (medicine) => {
+  const addItem = async (medicine) => {
+    let batchOptions = []
+    try { const response = await medicineService.getBatches(medicine.id, { include_expired: false }); batchOptions = response.data?.batches || [] } catch {}
     const existing = items.find(i => i.medicineId === medicine.id)
     if (existing) {
       setItems(items.map(i => i.medicineId === medicine.id ? { ...i, quantity: i.quantity + 1, totalCost: (i.quantity + 1) * i.unitCost } : i))
     } else {
-      setItems([...items, { medicineId: medicine.id, productCode: medicine.productCode, medicineName: medicine.name, batchNumber: medicine.batchNumber, quantity: 1, unitCost: medicine.unitPrice, totalCost: medicine.unitPrice }])
+      const preferred = batchOptions.length === 1 ? batchOptions[0] : null
+      setItems([...items, { medicineId: medicine.id, productCode: medicine.productCode, medicineName: medicine.name, batchOptions, batchMode: preferred ? 'EXISTING' : 'NEW', batchId: preferred?.batch_id || '', batchNumber: preferred?.batch_number || '', expiryDate: preferred ? String(preferred.expiry_date).slice(0, 10) : '', quantity: 1, unitCost: medicine.unitPrice, totalCost: medicine.unitPrice }])
     }
     setSearchMedicine('')
   }
@@ -35,18 +47,29 @@ const CreatePurchasePage = () => {
 
   const totalAmount = items.reduce((sum, item) => sum + item.totalCost, 0)
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
+  const selectBatch = (item, value) => {
+    if (value === 'NEW') return { ...item, batchMode: 'NEW', batchId: '', batchNumber: '', expiryDate: '' }
+    const batch = item.batchOptions.find(option => String(option.batch_id) === value)
+    return { ...item, batchMode: 'EXISTING', batchId: batch?.batch_id || '', batchNumber: batch?.batch_number || '', expiryDate: batch ? String(batch.expiry_date).slice(0, 10) : '' }
+  }
 
   const handleSubmit = async () => {
+    if (submitting) return
     if (!selectedSupplier) { showToast('Please select a supplier', 'error'); return }
+    if (!purchaseDate || purchaseDate < today) { showToast('Purchase date cannot be in the past', 'error'); return }
     if (items.length === 0) { showToast('Please add at least one medicine', 'error'); return }
+    if (items.some(i => !i.batchNumber.trim() || !i.expiryDate)) { showToast('Enter a batch number and expiry date for every received item', 'error'); return }
     const purchaseData = {
       supplier_id: parseInt(selectedSupplier),
       purchase_date: purchaseDate,
       notes,
       total_amount: totalAmount,
-      items: items.map(i => ({ medicine_id: i.medicineId, quantity: i.quantity, unit_cost: i.unitCost, total_cost: i.totalCost })),
+      items: items.map(i => ({ medicine_id: i.medicineId, quantity: i.quantity, unit_cost: i.unitCost, total_cost: i.totalCost, batch_number: i.batchNumber.trim(), expiry_date: i.expiryDate })),
+      idempotency_key: `purchase:${crypto.randomUUID()}`,
     }
+    setSubmitting(true)
     const result = await receiveStock(purchaseData)
+    setSubmitting(false)
     if (result.success) {
       setShowSuccess(true)
       setTimeout(() => navigate('/medicines'), 2000)
@@ -95,20 +118,20 @@ const CreatePurchasePage = () => {
               <div className="card-body">
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Supplier <span className="required">*</span></label>
-                    <select value={selectedSupplier} onChange={(e) => setSelectedSupplier(e.target.value)} className="form-control">
+                    <label className="form-label" htmlFor="purchase-supplier">Supplier <span className="required">*</span></label>
+                    <select id="purchase-supplier" value={selectedSupplier} onChange={(e) => setSelectedSupplier(e.target.value)} className="form-control">
                       <option value="">-- Select Supplier --</option>
                       {suppliers.map(s => <option key={s.id} value={s.id}>{s.company_name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Purchase Date</label>
-                    <input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} className="form-control" />
+                    <label className="form-label" htmlFor="purchase-date">Purchase Date</label>
+                    <input id="purchase-date" type="date" value={purchaseDate} min={today} onChange={(e) => setPurchaseDate(e.target.value)} className="form-control" />
                   </div>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Notes</label>
-                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional purchase notes..." className="form-control" rows="2" />
+                  <label className="form-label" htmlFor="purchase-notes">Notes</label>
+                  <textarea id="purchase-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional purchase notes..." className="form-control" rows="2" />
                 </div>
               </div>
             </div>
@@ -118,7 +141,7 @@ const CreatePurchasePage = () => {
               <div className="card-body">
                 <div className="search-input-wrapper">
                   <span className="search-icon"><Search size={18} /></span>
-                  <input type="text" value={searchMedicine} onChange={(e) => setSearchMedicine(e.target.value)} placeholder="Search by Product ID or medicine name..." className="form-control" />
+                  <input type="text" value={searchMedicine} onChange={(e) => setSearchMedicine(e.target.value)} placeholder="Search by Product ID or medicine name..." className="form-control" aria-label="Search medicines" />
                 </div>
                 {filteredMedicines.length > 0 && (
                   <div style={{ marginTop: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', maxHeight: '280px', overflowY: 'auto' }}>
@@ -151,7 +174,12 @@ const CreatePurchasePage = () => {
                       <div key={item.medicineId} style={{ display: 'flex', alignItems: 'center', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-subtle)', gap: 'var(--space-3)' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.medicineName}</div>
-                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{item.productCode} · {item.batchNumber}</div>
+                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{item.productCode} · {item.batchNumber || 'Batch pending'}</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr)', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+                            <select className="form-control" value={item.batchMode === 'NEW' ? 'NEW' : String(item.batchId)} onChange={e => setItems(items.map(i => i.medicineId === item.medicineId ? selectBatch(i, e.target.value) : i))} aria-label={`Batch selection for ${item.medicineName}`}><option value="NEW">New supplier batch</option>{item.batchOptions.map(batch => <option key={batch.batch_id} value={batch.batch_id}>Existing: {batch.batch_number} ({String(batch.expiry_date).slice(0, 10)})</option>)}</select>
+                            <input className="form-control" style={{ minWidth: 0 }} placeholder="Batch number" value={item.batchNumber} readOnly={item.batchMode === 'EXISTING'} onChange={e => setItems(items.map(i => i.medicineId === item.medicineId ? { ...i, batchNumber: e.target.value } : i))} aria-label={`Batch number for ${item.medicineName}`} />
+                            <input className="form-control" type="date" min={today} value={item.expiryDate} readOnly={item.batchMode === 'EXISTING'} onChange={e => setItems(items.map(i => i.medicineId === item.medicineId ? { ...i, expiryDate: e.target.value } : i))} aria-label={`Expiry date for ${item.medicineName}`} />
+                          </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                           <div className="qty-control">
@@ -174,7 +202,7 @@ const CreatePurchasePage = () => {
                       <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Total Cost</span>
                       <span style={{ fontWeight: 700, color: 'var(--primary-bright)' }}>{formatLKR(totalAmount)}</span>
                     </div>
-                    <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={handleSubmit}><Check size={18} /> Confirm & Receive Stock</button>
+                    <button disabled={submitting} className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={handleSubmit}><Check size={18} /> {submitting ? 'Saving...' : 'Confirm & Receive Stock'}</button>
                     <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textAlign: 'center', marginTop: 'var(--space-3)' }}>This will increase medicine stock levels in inventory.</p>
                   </div>
                 </div>
