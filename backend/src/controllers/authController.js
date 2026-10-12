@@ -14,6 +14,7 @@ const toSession = user => ({
   username: user.username,
   role: normalizeRole(user.role),
   customerId: user.customer_id || null,
+  supplierId: normalizeRole(user.role) === 'SUPPLIER' ? user.supplier_id || null : null,
   name: normalizeRole(user.role) === 'CUSTOMER' ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : user.staff_name || user.username,
 })
 
@@ -22,6 +23,7 @@ const toIdentity = user => ({
   username: user.username,
   role: normalizeRole(user.role),
   customerId: user.customer_id || null,
+  supplierId: normalizeRole(user.role) === 'SUPPLIER' ? user.supplier_id || null : null,
   name: normalizeRole(user.role) === 'CUSTOMER' ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : user.staff_name || user.username,
 })
 

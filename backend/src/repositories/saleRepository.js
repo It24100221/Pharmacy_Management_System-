@@ -324,6 +324,7 @@ class SaleRepository {
       }
 
       // Commit transaction
+      await require('../services/inventorySupply').checkLowStock(connection, validatedItems.map(item => item.medicine_id), saleData.actor_user_id);
       await connection.commit();
     } catch (error) {
       // Rollback on error

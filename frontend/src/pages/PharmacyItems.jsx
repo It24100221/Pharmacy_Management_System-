@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { Filter, ImageOff, Search, ShoppingCart } from 'lucide-react'
+import { Filter, Search, ShoppingCart } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { formatLKR } from '../data/mockMedicines.js'
 import { productService } from '../services/apiService.js'
 import { normalizeCatalogProduct } from '../utils/normalization.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useCart } from '../context/CartContext.jsx'
+import CatalogueProductImage from '../components/CatalogueProductImage.jsx'
 
 const availabilityLabel = product => {
   if (product.availability === 'AVAILABLE') return `${product.stockQuantity} available`
@@ -62,14 +63,16 @@ const PharmacyItems = () => {
         {actionError && <div className="public-auth-error public-empty">{actionError}</div>}
         {loadError && <div className="public-empty">{loadError}</div>}
         {loading && !loadError && <div className="public-empty">Loading products...</div>}
-        {!loading && products.map(product => <article className="public-product-card" key={product.productCode}>
-          <div className="public-product-image">{product.image ? <img src={product.image} alt={product.name} /> : <ImageOff size={28} />}</div>
+        {!loading && products.map(product => {
+          return <article className="public-product-card" key={product.productCode}>
+          <CatalogueProductImage key={`${product.productCode}:${product.image}`} product={product} />
           <span>{product.category}{product.prescriptionRequired ? ' · Prescription required' : ''}</span>
           <h2>{product.name}</h2>
           <p><strong>{product.productCode}</strong>{product.description ? ` · ${product.description}` : ''}</p>
           <div className="public-product-bottom"><strong>{formatLKR(product.price)}</strong><small>{availabilityLabel(product)}</small></div>
           <button type="button" disabled={!['AVAILABLE', 'LOW_STOCK'].includes(product.availability)} onClick={() => addProduct(product)}><ShoppingCart size={14} /> {session?.role === 'CUSTOMER' ? 'Add to cart' : 'Sign in to order'}</button>
-        </article>)}
+        </article>
+        })}
         {!loading && !loadError && !products.length && <div className="public-empty">No products match your search.</div>}
       </div>
     </div>

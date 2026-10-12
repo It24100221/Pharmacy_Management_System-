@@ -1,3 +1,4 @@
+import ProductThumbnail from '../../components/ProductThumbnail.jsx'
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useApp } from '../../context/AppContext.jsx'
@@ -149,7 +150,7 @@ const CreatePurchasePage = () => {
                       <div key={m.id} onClick={() => addItem(m)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', transition: 'background 0.15s' }}
                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                         <div>
-                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)' }}>{m.name}</div>
+                          <ProductThumbnail productCode={m.productCode} medicineId={m.id} name={m.name} /><div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)' }}>{m.name}</div>
                           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{m.productCode} | Stock: {m.quantity} | {m.batchNumber}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 600, color: 'var(--primary-bright)' }}>{formatLKR(m.unitPrice)}</div></div>
@@ -173,7 +174,7 @@ const CreatePurchasePage = () => {
                     {items.map(item => (
                       <div key={item.medicineId} style={{ display: 'flex', alignItems: 'center', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-subtle)', gap: 'var(--space-3)' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.medicineName}</div>
+                          <ProductThumbnail productCode={item.productCode} medicineId={item.medicineId} name={item.medicineName} /><div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.medicineName}</div>
                           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{item.productCode} · {item.batchNumber || 'Batch pending'}</div>
                           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr)', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
                             <select className="form-control" value={item.batchMode === 'NEW' ? 'NEW' : String(item.batchId)} onChange={e => setItems(items.map(i => i.medicineId === item.medicineId ? selectBatch(i, e.target.value) : i))} aria-label={`Batch selection for ${item.medicineName}`}><option value="NEW">New supplier batch</option>{item.batchOptions.map(batch => <option key={batch.batch_id} value={batch.batch_id}>Existing: {batch.batch_number} ({String(batch.expiry_date).slice(0, 10)})</option>)}</select>

@@ -5,113 +5,21 @@ const notificationRepository = require('./notificationRepository');
 const dateOnly = value => value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10);
 
 class SupplierOperationsRepository {
-  async findLowStock() {
-    const [rows] = await pool.execute(`
-      SELECT m.id AS medicine_id, m.name, m.min_stock_level, m.quantity AS aggregate_quantity,
-        COALESCE(eligible.eligible_quantity, 0) +
-          CASE WHEN m.quantity - COALESCE(all_batches.batch_quantity, 0) > 0
-                    AND m.expiry_date >= CAST(GETDATE() AS date)
-               THEN m.quantity - COALESCE(all_batches.batch_quantity, 0) ELSE 0 END AS available_quantity,
-        COALESCE(preferred.supplier_id, NULL) AS preferred_supplier_id,
-        preferred.company_name AS preferred_supplier_name
-      FROM medicines m
-      OUTER APPLY (
-        SELECT SUM(quantity_available) AS eligible_quantity
-        FROM medicine_batches b
-        WHERE b.medicine_id = m.id AND b.is_active = 1
-          AND b.quantity_available > 0 AND b.expiry_date >= CAST(GETDATE() AS date)
-      ) eligible
-      OUTER APPLY (
-        SELECT SUM(quantity_available) AS batch_quantity
-        FROM medicine_batches b2 WHERE b2.medicine_id = m.id
-      ) all_batches
-      OUTER APPLY (
-        SELECT TOP (1) sm.supplier_id, s.company_name
-        FROM supplier_medicines sm INNER JOIN suppliers s ON s.id = sm.supplier_id
-        WHERE sm.medicine_id = m.id AND sm.is_active = 1
-        ORDER BY sm.is_preferred DESC, sm.created_at ASC, sm.supplier_id ASC
-      ) preferred
-      WHERE m.is_active = 1
-        AND (COALESCE(eligible.eligible_quantity, 0) +
-          CASE WHEN m.quantity - COALESCE(all_batches.batch_quantity, 0) > 0
-                    AND m.expiry_date >= CAST(GETDATE() AS date)
-               THEN m.quantity - COALESCE(all_batches.batch_quantity, 0) ELSE 0 END) <= m.min_stock_level
-      ORDER BY available_quantity ASC, m.name ASC
-    `);
-    return rows.map(row => ({
-      ...row,
-      available_quantity: Number(row.available_quantity || 0),
-      suggested_quantity: Math.max(Number(row.min_stock_level || 0) * 2 - Number(row.available_quantity || 0), 1),
-    }));
-  }
-
-  async listReorderRequests(status) {
-    const params = [];
-    let where = '';
-    if (status) { where = ' WHERE rr.status = ?'; params.push(status); }
-    const [rows] = await pool.execute(`
-      SELECT rr.reorder_request_id, rr.medicine_id, m.name AS medicine_name,
-        rr.requested_quantity, rr.status, rr.requested_by, rr.created_at, rr.resolved_at, rr.supplier_id, rr.notes,
-        sm.supplier_id AS preferred_supplier_id, s.company_name AS preferred_supplier_name
-      FROM reorder_requests rr
-      INNER JOIN medicines m ON m.id = rr.medicine_id
-      OUTER APPLY (
-        SELECT TOP (1) supplier_id FROM supplier_medicines
-        WHERE medicine_id = rr.medicine_id AND is_active = 1
-        ORDER BY is_preferred DESC, created_at ASC, supplier_id ASC
-      ) sm
-      LEFT JOIN suppliers s ON s.id = sm.supplier_id
-      ${where}
-      ORDER BY rr.created_at DESC, rr.reorder_request_id DESC
-    `, params);
-    return rows;
-  }
-
-  async createReorderRequest({ medicineId, requestedQuantity, requestedBy, supplierId, notes }) {
-    const [existing] = await pool.execute("SELECT TOP (1) reorder_request_id FROM reorder_requests WHERE medicine_id = ? AND status = 'OPEN'", [medicineId]);
-    if (existing[0]) return this.findReorderById(existing[0].reorder_request_id);
-    const lowStock = await this.findLowStock();
-    if (!lowStock.some(row => Number(row.medicine_id) === Number(medicineId))) throw new ApiError('Medicine is not currently below its reorder threshold', 409);
-    let created;
-    try {
-      [created] = await pool.execute(`
-        INSERT INTO reorder_requests (medicine_id, requested_quantity, requested_by, supplier_id, notes)
-        OUTPUT INSERTED.reorder_request_id AS insertId
-        VALUES (?, ?, ?, ?, ?)
-      `, [medicineId, requestedQuantity, requestedBy, supplierId || null, notes || null]);
-    } catch (error) {
-      if (error.number === 2601 || error.number === 2627) {
-        const [duplicate] = await pool.execute("SELECT TOP (1) reorder_request_id FROM reorder_requests WHERE medicine_id = ? AND status = 'OPEN'", [medicineId]);
-        if (duplicate[0]) return this.findReorderById(duplicate[0].reorder_request_id);
-      }
-      throw error;
-    }
-    await notificationRepository.notifyRole({
-      role: 'INVENTORY', type: 'REORDER_REQUEST', title: 'Reorder request created',
-      message: `Medicine ${medicineId} requires replenishment (${requestedQuantity} units requested).`,
-      entityType: 'REORDER_REQUEST', entityId: created.insertId,
-      deduplicationKey: `reorder-request:${created.insertId}`,
-    });
-    return this.findReorderById(created.insertId);
-  }
-
-  async findReorderById(id) {
-    const rows = await this.listReorderRequests();
-    return rows.find(row => Number(row.reorder_request_id) === Number(id)) || null;
-  }
-
+  async findLowStock() { return require('../services/inventorySupply').lowStock(); }
+  async listReorderRequests(status, supplierId = null) { return require('../services/inventorySupply').listRequests({ status, supplierId }); }
+  async createReorderRequest(data) { return require('../services/inventorySupply').createRequest(data); }
+  async findReorderById(id) { return require('../services/inventorySupply').getRequest(id); }
   async updateReorderStatus(id, status) {
-    if (!['OPEN', 'ORDERED', 'CANCELLED', 'RECEIVED'].includes(status)) throw new ApiError('Invalid reorder request status', 400);
-    const [current] = await pool.execute('SELECT status FROM reorder_requests WHERE reorder_request_id = ?', [id]);
-    if (!current[0]) throw new ApiError('Reorder request not found', 404);
-    const transitions = { OPEN: ['ORDERED', 'CANCELLED'], ORDERED: ['RECEIVED', 'CANCELLED'], CANCELLED: [], RECEIVED: [] };
-    if (!transitions[current[0].status].includes(status)) throw new ApiError('Reorder request cannot transition to that status', 409);
-    const [rows] = await pool.execute(`
-      UPDATE reorder_requests SET status = ?, resolved_at = CASE WHEN ? IN ('CANCELLED', 'RECEIVED') THEN SYSDATETIME() ELSE resolved_at END
-      WHERE reorder_request_id = ? AND status = ?;
-      SELECT @@ROWCOUNT AS affectedRows;
-    `, [status, status, id, current[0].status]);
-    if (Number(rows[0]?.affectedRows) !== 1) throw new ApiError('Reorder request cannot transition to that status', 409);
+    if (status !== 'CANCELLED') throw new ApiError('Request status is controlled by supplier approval and goods receipt', 409);
+    await require('../services/inventorySupply').transaction(async connection => {
+      const [rows] = await connection.execute('SELECT status FROM reorder_requests WITH (UPDLOCK,HOLDLOCK) WHERE reorder_request_id=?', [id]);
+      if (!rows[0]) throw new ApiError('Supply request not found', 404);
+      if (rows[0].status === 'CANCELLED') return;
+      if (rows[0].status !== 'OPEN') throw new ApiError('Cancel the linked purchase order instead', 409);
+      await connection.execute("UPDATE reorder_requests SET status='CANCELLED',resolved_at=SYSDATETIME() WHERE reorder_request_id=?", [id]);
+      const request=await require('../services/inventorySupply').getRequest(id,null,connection);
+      await require('../services/inventorySupply').notify(connection,{supplierId:request.supplier_id,type:'SUPPLY_CANCELLED',title:'Supply request cancelled',message:request.request_number,entityType:'REORDER_REQUEST',entityId:id,key:'supply-cancelled:'+id});
+    });
     return this.findReorderById(id);
   }
 
@@ -273,9 +181,13 @@ class SupplierOperationsRepository {
     let receiptId;
     try {
       await connection.beginTransaction();
-      const [orders] = await connection.execute(`SELECT purchase_order_id, status FROM purchase_orders WITH (UPDLOCK, HOLDLOCK) WHERE purchase_order_id = ?`, [purchaseOrderId]);
+      const [orders] = await connection.execute(`SELECT purchase_order_id, status, supplier_id, reorder_request_id FROM purchase_orders WITH (UPDLOCK, HOLDLOCK) WHERE purchase_order_id = ?`, [purchaseOrderId]);
       const order = orders[0];
       if (!order) throw new ApiError('Purchase order not found', 404);
+      // Recheck after the order lock: concurrent retries must return the same receipt.
+      const [duplicate] = await connection.execute('SELECT goods_receipt_id FROM goods_receipts WHERE idempotency_key = ?', [idempotencyKey]);
+      if (duplicate[0]) { await connection.rollback(); return this.getGoodsReceipt(duplicate[0].goods_receipt_id); }
+      if (order.reorder_request_id && !['CONFIRMED','PARTIALLY_RECEIVED'].includes(order.status)) throw new ApiError('Linked supply order must be confirmed before receiving',409);
       if (!['SENT', 'CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status)) throw new ApiError('Purchase order is not eligible for receiving', 409);
       const [receipt] = await connection.execute(`INSERT INTO goods_receipts (purchase_order_id, supplier_delivery_reference, received_by, idempotency_key, notes) OUTPUT INSERTED.goods_receipt_id AS insertId VALUES (?, ?, ?, ?, ?)`, [purchaseOrderId, deliveryReference, actorUserId, idempotencyKey, notes]);
       receiptId = receipt.insertId;
@@ -311,13 +223,17 @@ class SupplierOperationsRepository {
         await connection.execute(`INSERT INTO goods_receipt_items (goods_receipt_id, purchase_order_item_id, medicine_id, batch_id, quantity_received, unit_cost) VALUES (?, ?, ?, ?, ?, ?)`, [receiptId, orderItem.purchase_order_item_id, orderItem.medicine_id, batchId, quantity, item.unit_cost ?? orderItem.unit_cost]);
         const [receivedUpdate] = await connection.execute('UPDATE purchase_order_items SET received_quantity = received_quantity + ? WHERE purchase_order_item_id = ? AND received_quantity + ? <= ordered_quantity; SELECT @@ROWCOUNT AS affectedRows', [quantity, orderItem.purchase_order_item_id, quantity]);
         if (Number(receivedUpdate[0]?.affectedRows) !== 1) throw new ApiError('Purchase-order receiving total changed; please retry', 409);
-        if (Number(orderItem.received_quantity) + quantity === Number(orderItem.ordered_quantity)) {
-          await connection.execute("UPDATE reorder_requests SET status = 'RECEIVED', resolved_at = SYSDATETIME() WHERE medicine_id = ? AND status = 'ORDERED'", [orderItem.medicine_id]);
-        }
       }
       const [outstanding] = await connection.execute('SELECT COUNT(*) AS remaining FROM purchase_order_items WHERE purchase_order_id = ? AND received_quantity < ordered_quantity', [purchaseOrderId]);
       const nextStatus = Number(outstanding[0]?.remaining || 0) === 0 ? 'RECEIVED' : 'PARTIALLY_RECEIVED';
       await connection.execute('UPDATE purchase_orders SET status = ?, updated_at = SYSDATETIME() WHERE purchase_order_id = ?', [nextStatus, purchaseOrderId]);
+      const supply = require('../services/inventorySupply');
+      if (order.reorder_request_id) {
+        if (nextStatus === 'RECEIVED') await connection.execute("UPDATE reorder_requests SET status='RECEIVED',resolved_at=SYSDATETIME() WHERE reorder_request_id=? AND status='ORDERED'",[order.reorder_request_id]);
+        for (const staff of [false,true]) await supply.notify(connection,{supplierId:order.supplier_id,staff,type:'GOODS_RECEIPT',title:'Medicine delivery received',message:`Purchase order ${purchaseOrderId}: ${nextStatus}`,entityType:'PURCHASE_ORDER',entityId:purchaseOrderId,key:`supply-receipt:${receiptId}`});
+      }
+      const [medicineIds] = await connection.execute('SELECT medicine_id FROM purchase_order_items WHERE purchase_order_id=?',[purchaseOrderId]);
+      await supply.checkLowStock(connection,medicineIds.map(item=>item.medicine_id),actorUserId);
       await connection.commit();
     } catch (error) { try { await connection.rollback(); } catch {} if (error.number === 2601 || error.number === 2627) throw new ApiError('Goods receipt already exists; refresh before retrying', 409); throw error; }
     finally { connection.release(); }

@@ -3,8 +3,8 @@ const ApiError = require('../middleware/errorHandler');
 const repository = require('../repositories/purchaseOrderRepository');
 const { parsePositiveInteger, isIsoDate, todayInTimeZone } = require('../utils/requestValidation');
 
-exports.list = asyncHandler(async (req, res) => res.json({ success: true, data: { purchase_orders: await repository.findAll() } }));
-exports.get = asyncHandler(async (req, res) => { const order = await repository.findById(parsePositiveInteger(req.params.id, 'purchase order ID')); if (!order) throw new ApiError('Purchase order not found', 404); res.json({ success: true, data: order }); });
+exports.list = asyncHandler(async (req, res) => res.json({ success: true, data: { purchase_orders: await repository.findAll(require('../services/inventorySupply').supplierScope(req.user)) } }));
+exports.get = asyncHandler(async (req, res) => { const order = await repository.findById(parsePositiveInteger(req.params.id, 'purchase order ID'),require('../services/inventorySupply').supplierScope(req.user)); if (!order) throw new ApiError('Purchase order not found', 404); res.json({ success: true, data: order }); });
 exports.create = asyncHandler(async (req, res) => {
   const body = req.body || {}; const supplierId = parsePositiveInteger(body.supplier_id, 'supplier ID');
   if (!Array.isArray(body.items) || !body.items.length) throw new ApiError('At least one purchase-order item is required', 400);
@@ -19,4 +19,4 @@ exports.create = asyncHandler(async (req, res) => {
   const order = await repository.create({ supplierId, expectedDate: body.expected_date || null, notes: typeof body.notes === 'string' ? body.notes.trim() || null : null, idempotencyKey, actorUserId: req.user.userId, items });
   res.status(201).json({ success: true, message: 'Purchase order created', data: order });
 });
-exports.updateStatus = asyncHandler(async (req, res) => { const status = String(req.body?.status || '').toUpperCase(); const order = await repository.updateStatus(parsePositiveInteger(req.params.id, 'purchase order ID'), status); res.json({ success: true, data: order }); });
+exports.updateStatus = asyncHandler(async (req, res) => { const status = String(req.body?.status || '').toUpperCase(); const order = await repository.updateStatus(parsePositiveInteger(req.params.id, 'purchase order ID'), status,req.user); res.json({ success: true, data: order }); });

@@ -132,7 +132,7 @@ class MedicineController {
     const validatedData = MedicineValidator.validateUpdate(id, req.body);
 
     // Update medicine
-    const medicine = await medicineRepository.update(id, validatedData);
+    const medicine = await medicineRepository.update(id, validatedData, req.user.userId);
 
     res.json({
       success: true,

@@ -6,10 +6,11 @@ class AuthRepository {
     const [rows] = await pool.execute(`
       SELECT TOP 1 u.user_id, u.username, u.password, UPPER(LTRIM(RTRIM(u.role))) AS role,
         c.id AS customer_id, c.first_name, c.last_name, c.email,
-        s.staff_id, s.staff_name, s.email AS staff_email, s.phone AS staff_phone
+        s.staff_id, s.staff_name, s.email AS staff_email, s.phone AS staff_phone, su.supplier_id
       FROM users u
       LEFT JOIN customers c ON c.user_id = u.user_id
       LEFT JOIN staff s ON s.user_id = u.user_id
+      LEFT JOIN supplier_users su ON su.user_id = u.user_id
       WHERE u.user_id = ?
         AND (UPPER(LTRIM(RTRIM(u.role))) <> 'CUSTOMER' OR c.is_active = 1)
     `, [userId])
@@ -21,10 +22,11 @@ class AuthRepository {
     const [rows] = await pool.execute(`
       SELECT TOP 1 u.user_id, u.username, u.password, UPPER(LTRIM(RTRIM(u.role))) AS role,
         c.id AS customer_id, c.first_name, c.last_name, c.email,
-        s.staff_id, s.staff_name, s.email AS staff_email, s.phone AS staff_phone
+        s.staff_id, s.staff_name, s.email AS staff_email, s.phone AS staff_phone, su.supplier_id
       FROM users u
       LEFT JOIN customers c ON c.user_id = u.user_id
       LEFT JOIN staff s ON s.user_id = u.user_id
+      LEFT JOIN supplier_users su ON su.user_id = u.user_id
       WHERE (u.username = ? OR c.email = ? OR s.email = ?)${roleClause}
         AND (UPPER(LTRIM(RTRIM(u.role))) <> 'CUSTOMER' OR c.is_active = 1)
     `, [username, username, username, ...roles])

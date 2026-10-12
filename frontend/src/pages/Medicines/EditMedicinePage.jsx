@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useApp } from '../../context/AppContext.jsx'
 import { ArrowLeft } from '../../components/common/Icons.jsx'
+import ProductImageManager from '../../components/ProductImageManager.jsx'
 
 const EditMedicinePage = () => {
   const navigate = useNavigate()
@@ -97,6 +98,7 @@ const EditMedicinePage = () => {
 
       <div className="content-container" style={{ paddingTop: 'var(--space-6)', maxWidth: '800px' }}>
         <form onSubmit={handleSubmit}>
+          <ProductImageManager productCode={medicine.productCode} name={medicine.name} />
           <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
             <div className="card-header"><span className="card-header-title">Medicine Information</span></div>
             <div className="card-body">

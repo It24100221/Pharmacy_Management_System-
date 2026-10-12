@@ -9,23 +9,25 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const allowedTypes = Object.freeze({
   'image/jpeg': { extensions: ['.jpg', '.jpeg'], storedExtension: '.jpg' },
   'image/png': { extensions: ['.png'], storedExtension: '.png' },
+  'image/webp': { extensions: ['.webp'], storedExtension: '.webp' },
 });
 
 const hasJpegSignature = buffer => buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
 const hasPngSignature = buffer => buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+const hasWebpSignature = buffer => buffer.length >= 20 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP' && ['VP8 ', 'VP8L', 'VP8X'].includes(buffer.toString('ascii', 12, 16)) && buffer.readUInt32LE(4) + 8 === buffer.length;
 
 function validateAndDescribe(file) {
   if (!file || !Buffer.isBuffer(file.buffer) || !Number.isInteger(file.size)) throw new ApiError('Malformed product image', 400);
   if (!file.size || file.size !== file.buffer.length) throw new ApiError('Product image is empty or incomplete', 400);
   if (file.size > MAX_IMAGE_BYTES) throw new ApiError('Product image must not exceed 5 MB', 413);
   const type = allowedTypes[file.declaredMimeType];
-  if (!type) throw new ApiError('Only JPEG and PNG product images are accepted', 415);
+  if (!type) throw new ApiError('Only JPEG, PNG and WebP product images are accepted', 415);
 
   const originalName = path.posix.basename(String(file.originalName || '').replace(/\\/g, '/'))
     .replace(/[\u0000-\u001f\u007f]/g, '').trim();
   if (!originalName || originalName.length > 255) throw new ApiError('Product image filename is invalid', 400);
   if (!type.extensions.includes(path.extname(originalName).toLowerCase())) throw new ApiError('Product image extension does not match its MIME type', 415);
-  const signatureValid = file.declaredMimeType === 'image/jpeg' ? hasJpegSignature(file.buffer) : hasPngSignature(file.buffer);
+  const signatureValid = file.declaredMimeType === 'image/jpeg' ? hasJpegSignature(file.buffer) : file.declaredMimeType === 'image/png' ? hasPngSignature(file.buffer) : hasWebpSignature(file.buffer);
   if (!signatureValid) throw new ApiError('Product image content does not match its MIME type', 415);
 
   const storedFilename = `${crypto.randomUUID()}${type.storedExtension}`;
@@ -40,7 +42,7 @@ function validateAndDescribe(file) {
 
 function resolveStoragePath(storagePath) {
   const normalized = String(storagePath || '').replace(/\\/g, '/');
-  if (!/^products\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png)$/i.test(normalized)) {
+  if (!/^products\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/i.test(normalized)) {
     throw new ApiError('Product image reference is invalid', 404);
   }
   const absolutePath = path.resolve(UPLOADS_ROOT, ...normalized.split('/'));

@@ -30,6 +30,8 @@ export function normalizeMedicine(medicine = {}) {
     id: Number(medicine.id),
     productCode: medicine.product_code ?? medicine.productCode ?? '',
     quantity,
+    availableQuantity: Number(medicine.available_quantity ?? medicine.availableQuantity ?? quantity),
+    reorderTarget: medicine.reorder_target ?? medicine.reorderTarget ?? null,
     stockStatus: medicine.stock_status || computeStockStatus(quantity, minStockLevel),
     expiryStatus: medicine.expiry_status || getExpiryStatus(expiryDate),
     unitPrice: Number(medicine.unit_price ?? medicine.unitPrice ?? 0),
@@ -127,5 +129,9 @@ export function normalizeCatalogProduct(product = {}) {
     availability: String(product.availability || 'OUT_OF_STOCK'),
     prescriptionRequired: Boolean(product.prescription_required),
     image: product.image_url || null,
+    imageKind: product.image_kind || 'uploaded',
+    imageAlt: product.image_alt_text || product.name || '',
+    imageSourceUrl: product.image_source_url || null,
+    imageLicense: product.image_license || null,
   }
 }

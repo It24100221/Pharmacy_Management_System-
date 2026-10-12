@@ -22,6 +22,7 @@ async function authenticateToken(req, res, next) {
     req.user = {
       userId: user.user_id,
       customerId: user.customer_id || null,
+      ...(role === 'SUPPLIER' ? { supplierId: user.supplier_id || null } : {}),
       username: user.username,
       role,
     }

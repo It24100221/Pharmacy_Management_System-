@@ -4,6 +4,7 @@ import { Search, Plus, Pencil, Trash2, Building2, Package, ArrowRight } from '..
 import { useApp } from '../../context/AppContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { canManageSuppliers } from '../../config/authorization.js'
+import SupplierAccountManager from '../../components/SupplierAccountManager.jsx'
 
 const SupplierListPage = () => {
   const { suppliers, deleteSupplier } = useApp()
@@ -49,6 +50,7 @@ const SupplierListPage = () => {
       </div>
 
       <div className="content-container" style={{ paddingTop: 'var(--space-6)' }}>
+        {session?.role === 'ADMIN' && <SupplierAccountManager />}
         <div style={{ marginBottom: 'var(--space-5)' }}>
           <div className="search-input-wrapper" style={{ maxWidth: '500px' }}>
             <span className="search-icon"><Search size={18} /></span>

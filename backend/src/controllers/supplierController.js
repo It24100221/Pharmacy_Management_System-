@@ -7,6 +7,11 @@ class SupplierController {
   // GET /api/suppliers
   // GET /api/suppliers?search=...
   getAllSuppliers = asyncHandler(async (req, res) => {
+    if (req.user.role === 'SUPPLIER') {
+      const supplierId=require('../services/inventorySupply').supplierScope(req.user);
+      const supplier=await supplierRepository.findById(supplierId);
+      return res.json({success:true,data:{suppliers:supplier ? [supplier] : [],pagination:{current_page:1,per_page:1,total_items:supplier ? 1 : 0,total_pages:1}}});
+    }
     const { search, page, limit, pagination } = req.query;
 
     const paging = parsePagination(req.query);
@@ -33,6 +38,7 @@ class SupplierController {
   // GET /api/suppliers/:id
   getSupplierById = asyncHandler(async (req, res) => {
     const id = parsePositiveInteger(req.params.id, 'supplier ID');
+    if (req.user.role==='SUPPLIER' && require('../services/inventorySupply').supplierScope(req.user)!==id) return res.status(404).json({success:false,message:'Supplier not found'});
 
     const supplier = await supplierRepository.findById(id);
 

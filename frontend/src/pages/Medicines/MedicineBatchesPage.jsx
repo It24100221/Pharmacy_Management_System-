@@ -4,6 +4,7 @@ import { Activity, ArrowLeft, Check, Package, Plus } from '../../components/comm
 import { medicineService } from '../../services/apiService.js'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useApp } from '../../context/AppContext.jsx'
+import ProductThumbnail from '../../components/ProductThumbnail.jsx'
 
 const MedicineBatchesPage = () => {
   const { id } = useParams()
@@ -76,6 +77,7 @@ const MedicineBatchesPage = () => {
       <h1>{medicine?.name || 'Medicine'} batches</h1><p>FEFO-eligible lots, legacy stock reconciliation, and movement history.</p>
     </div><div className="page-header-actions"><Link to="/medicines" className="btn btn-ghost"><ArrowLeft size={18} /> Back</Link></div></div></div>
     <div className="content-container" style={{ paddingTop: 'var(--space-6)' }}>
+      <ProductThumbnail productCode={medicine?.product_code} medicineId={id} name={medicine?.name} />
       <div className="card" style={{ marginBottom: 'var(--space-5)' }}><div className="card-body" style={{ display: 'flex', gap: 'var(--space-6)', flexWrap: 'wrap' }}>
         <span><strong>Aggregate stock:</strong> {medicine?.quantity ?? 0}</span><span><strong>Known batch stock:</strong> {knownBatchQuantity}</span><span><strong>Legacy/unallocated:</strong> {Math.max(0, Number(medicine?.quantity || 0) - knownBatchQuantity)}</span>
       </div></div>

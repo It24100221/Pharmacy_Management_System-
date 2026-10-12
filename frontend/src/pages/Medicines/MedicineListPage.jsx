@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import ProductThumbnail from '../../components/ProductThumbnail.jsx'
 import { Link } from 'react-router-dom'
 import { Search, Plus, Pencil, AlertTriangle, AlertCircle, CheckCircle, Pill } from '../../components/common/Icons.jsx'
 import { useApp } from '../../context/AppContext.jsx'
@@ -138,7 +139,7 @@ const MedicineListPage = () => {
               <tbody>
                 {filteredMedicines.map((medicine) => (
                   <tr key={medicine.id}>
-                    <td><span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{medicine.name}</span><div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{medicine.productCode}</div></td>
+                    <td><ProductThumbnail productCode={medicine.productCode} name={medicine.name} /><span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{medicine.name}</span><div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{medicine.productCode}</div></td>
                     <td style={{ color: 'var(--text-secondary)' }}>{medicine.genericName}</td>
                     <td style={{ color: 'var(--text-secondary)' }}>{medicine.category}</td>
                     <td>
@@ -166,7 +167,6 @@ const MedicineListPage = () => {
                     <td style={{ textAlign: 'center' }}>{renderExpiryBadge(medicine.expiryStatus, medicine.expiryDate)}</td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', gap: 'var(--space-1)' }}>
-                        <Link to={`/medicines/${medicine.id}/batches`} className="btn btn-ghost btn-sm">Batches</Link>
                         <Link to={`/medicines/edit/${medicine.id}`} className="btn btn-ghost btn-sm" title="Edit Medicine"><Pencil size={16} /> Edit</Link>
                       </div>
                     </td>

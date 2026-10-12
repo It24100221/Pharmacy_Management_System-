@@ -418,7 +418,7 @@ test('medicine count applies the same search, category, stock, and expiry filter
     assert.equal(count, 2);
     assert.match(captured.query, /m\.batch_number LIKE \?/);
     assert.match(captured.query, /m\.category = \?/);
-    assert.match(captured.query, /m\.quantity <= m\.min_stock_level/);
+    assert.match(captured.query, /inventory_stock\.available_quantity <= m\.min_stock_level/);
     assert.match(captured.query, /DATE_ADD\(CURDATE\(\), INTERVAL 30 DAY\)/);
     assert.deepEqual(captured.params, ['%batch%', '%batch%', '%batch%', '%batch%', 'Tablet']);
   } finally {

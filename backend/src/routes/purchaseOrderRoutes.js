@@ -6,5 +6,5 @@ const write = authorizeRoles('ADMIN', 'INVENTORY');
 router.get('/', authorizeRoles('ADMIN', 'INVENTORY', 'SUPPLIER'), controller.list);
 router.get('/:id', authorizeRoles('ADMIN', 'INVENTORY', 'SUPPLIER'), controller.get);
 router.post('/', write, controller.create);
-router.patch('/:id/status', write, controller.updateStatus);
+router.patch('/:id/status', authorizeRoles('ADMIN','INVENTORY','SUPPLIER'), controller.updateStatus);
 module.exports = router;

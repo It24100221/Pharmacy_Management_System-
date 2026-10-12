@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useApp } from '../../context/AppContext.jsx'
 import { ArrowLeft } from '../../components/common/Icons.jsx'
+import ProductImageManager from '../../components/ProductImageManager.jsx'
 
 const getPharmacyToday = () => {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Colombo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
@@ -93,6 +94,7 @@ const AddMedicinePage = () => {
 
       <div className="content-container" style={{ paddingTop: 'var(--space-6)', maxWidth: '800px' }}>
         <form onSubmit={handleSubmit}>
+          <ProductImageManager name={form.name} />
           <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
             <div className="card-header"><span className="card-header-title">Medicine Information</span></div>
             <div className="card-body">

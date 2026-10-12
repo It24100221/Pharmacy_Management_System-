@@ -86,6 +86,7 @@ class MedicineRepository {
         INSERT INTO stock_movements (medicine_id, batch_id, movement_type, quantity_delta, balance_after, reference_type, idempotency_key, notes, created_by)
         VALUES (?, ?, 'ADJUSTMENT', ?, ?, 'ADJUSTMENT', ?, ?, ?)
       `, [medicineId, batchId ?? null, quantityDelta, balanceAfter, idempotencyKey, reason, actorUserId || null]);
+      await require('../services/inventorySupply').checkLowStock(connection, [Number(medicineId)], actorUserId);
       await connection.commit();
       return { duplicate: false, movement: { medicine_id: medicineId, batch_id: batchId ?? null, quantity_delta: quantityDelta, balance_after: balanceAfter, notes: reason, idempotency_key: idempotencyKey } };
     } catch (error) {
@@ -108,14 +109,16 @@ class MedicineRepository {
         m.category,
         m.batch_number,
         m.quantity,
+        inventory_stock.available_quantity,
         m.unit_price,
         m.expiry_date,
         m.min_stock_level,
+        m.reorder_target,
         m.created_at,
         m.updated_at,
         CASE
-          WHEN m.quantity = 0 THEN 'out_of_stock'
-          WHEN m.quantity <= m.min_stock_level THEN 'low_stock'
+          WHEN inventory_stock.available_quantity = 0 THEN 'out_of_stock'
+          WHEN inventory_stock.available_quantity <= m.min_stock_level THEN 'low_stock'
           ELSE 'in_stock'
         END AS stock_status,
         CASE
@@ -124,6 +127,7 @@ class MedicineRepository {
           ELSE 'valid'
         END AS expiry_status
       FROM medicines m
+      JOIN v_inventory_supply_stock inventory_stock ON inventory_stock.medicine_id=m.id
       LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE 1=1
     `;
@@ -146,11 +150,11 @@ class MedicineRepository {
     // Stock status filter
     if (filters.stock_status) {
       if (filters.stock_status === 'low_stock') {
-        query += ` AND m.quantity > 0 AND m.quantity <= m.min_stock_level`;
+        query += ` AND inventory_stock.available_quantity > 0 AND inventory_stock.available_quantity <= m.min_stock_level`;
       } else if (filters.stock_status === 'out_of_stock') {
-        query += ` AND m.quantity = 0`;
+        query += ` AND inventory_stock.available_quantity = 0`;
       } else if (filters.stock_status === 'in_stock') {
-        query += ` AND m.quantity > m.min_stock_level`;
+        query += ` AND inventory_stock.available_quantity > m.min_stock_level`;
       }
     }
 
@@ -192,14 +196,16 @@ class MedicineRepository {
         m.category,
         m.batch_number,
         m.quantity,
+        inventory_stock.available_quantity,
         m.unit_price,
         m.expiry_date,
         m.min_stock_level,
+        m.reorder_target,
         m.created_at,
         m.updated_at,
         CASE
-          WHEN m.quantity = 0 THEN 'out_of_stock'
-          WHEN m.quantity <= m.min_stock_level THEN 'low_stock'
+          WHEN inventory_stock.available_quantity = 0 THEN 'out_of_stock'
+          WHEN inventory_stock.available_quantity <= m.min_stock_level THEN 'low_stock'
           ELSE 'in_stock'
         END AS stock_status,
         CASE
@@ -208,6 +214,7 @@ class MedicineRepository {
           ELSE 'valid'
         END AS expiry_status
       FROM medicines m
+      JOIN v_inventory_supply_stock inventory_stock ON inventory_stock.medicine_id=m.id
       LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE m.id = ?
     `;
@@ -297,7 +304,7 @@ class MedicineRepository {
   }
 
   // Update medicine
-  async update(id, medicineData) {
+  async update(id, medicineData, actorUserId) {
     const allowedFields = [
       'name', 'description', 'generic_name', 'manufacturer', 'category',
       'batch_number', 'unit_price', 'expiry_date', 'min_stock_level'
@@ -339,6 +346,8 @@ class MedicineRepository {
         values.push(id);
         await connection.execute(`UPDATE medicines SET ${assignments} WHERE id = ?`, values);
       }
+      // Recheck eligibility when quantity, expiry or the reorder threshold changes.
+      await require('../services/inventorySupply').checkLowStock(connection, [Number(id)], actorUserId);
       await connection.commit();
     } catch (error) {
       try { await connection.rollback(); } catch { /* preserve original error */ }
@@ -357,12 +366,14 @@ class MedicineRepository {
         pr.product_code,
         m.name,
         m.quantity,
+        inventory_stock.available_quantity,
         m.min_stock_level,
-        (m.min_stock_level - m.quantity) AS shortage
+        (m.min_stock_level - inventory_stock.available_quantity) AS shortage
       FROM medicines m
+      JOIN v_inventory_supply_stock inventory_stock ON inventory_stock.medicine_id=m.id
       LEFT JOIN products pr ON pr.medicine_id = m.id
-      WHERE m.quantity > 0 AND m.quantity <= m.min_stock_level
-      ORDER BY m.quantity ASC
+      WHERE inventory_stock.available_quantity > 0 AND inventory_stock.available_quantity <= m.min_stock_level
+      ORDER BY inventory_stock.available_quantity ASC
     `;
 
     const [rows] = await pool.execute(query);
@@ -378,6 +389,7 @@ class MedicineRepository {
         m.name,
         m.expiry_date,
         m.quantity,
+        inventory_stock.available_quantity,
         CASE
           WHEN m.expiry_date < CURDATE() THEN 'expired'
           WHEN m.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'near_expiry'
@@ -385,6 +397,7 @@ class MedicineRepository {
         END AS expiry_status,
         DATEDIFF(m.expiry_date, CURDATE()) AS days_until_expiry
       FROM medicines m
+      JOIN v_inventory_supply_stock inventory_stock ON inventory_stock.medicine_id=m.id
       LEFT JOIN products pr ON pr.medicine_id = m.id
       WHERE 1=1
     `;
@@ -403,7 +416,7 @@ class MedicineRepository {
 
   // Get total count
   async getCount(filters = {}) {
-    let query = `SELECT COUNT(*) as total FROM medicines m LEFT JOIN products pr ON pr.medicine_id = m.id WHERE 1=1`;
+    let query = `SELECT COUNT(*) as total FROM medicines m JOIN v_inventory_supply_stock inventory_stock ON inventory_stock.medicine_id=m.id LEFT JOIN products pr ON pr.medicine_id = m.id WHERE 1=1`;
     const params = [];
 
     if (filters.search) {
@@ -418,11 +431,11 @@ class MedicineRepository {
     }
 
     if (filters.stock_status === 'low_stock') {
-      query += ` AND m.quantity > 0 AND m.quantity <= m.min_stock_level`;
+      query += ` AND inventory_stock.available_quantity > 0 AND inventory_stock.available_quantity <= m.min_stock_level`;
     } else if (filters.stock_status === 'out_of_stock') {
-      query += ` AND m.quantity = 0`;
+      query += ` AND inventory_stock.available_quantity = 0`;
     } else if (filters.stock_status === 'in_stock') {
-      query += ` AND m.quantity > m.min_stock_level`;
+      query += ` AND inventory_stock.available_quantity > m.min_stock_level`;
     }
 
     if (filters.expiry_status === 'expired') {

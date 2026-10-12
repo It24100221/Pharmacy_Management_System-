@@ -174,6 +174,14 @@ export const prescriptionService = {
 export const productService = {
   getAll: async (params = {}) => (await api.get('/products', { params })).data,
   getByCode: async productCode => (await api.get(`/products/${productCode}`)).data,
+  uploadImage: async (productId, file, metadata) => {
+    const form = new FormData()
+    form.append('file', file)
+    Object.entries(metadata).forEach(([key, value]) => form.append(key, String(value)))
+    return (await api.post(`/products/id/${productId}/image`, form, { headers: { 'Content-Type': undefined } })).data
+  },
+  setImageUrl: async (productId, data) => (await api.put(`/products/id/${productId}/image-url`, data)).data,
+  removeImage: async productId => (await api.delete(`/products/id/${productId}/image`)).data,
 }
 
 export const cartService = {
@@ -219,6 +227,17 @@ export const reorderService = {
   getAll: async (params = {}) => (await api.get('/reorder-requests', { params })).data,
   create: async data => (await api.post('/reorder-requests', data)).data,
   updateStatus: async (id, status) => (await api.patch(`/reorder-requests/${id}/status`, { status })).data,
+  getById: async id => (await api.get(`/reorder-requests/${id}`)).data,
+  respond: async (id, data) => (await api.post(`/reorder-requests/${id}/respond`, data)).data,
+  review: async (id, data) => (await api.post(`/reorder-requests/${id}/review`, data)).data,
+}
+
+export const supplySettingsService = {
+  get: async id => (await api.get(`/medicines/${id}/supply-settings`)).data,
+  save: async (id, data) => (await api.put(`/medicines/${id}/supply-settings`, data)).data,
+  accounts: async () => (await api.get('/suppliers/accounts')).data,
+  linkAccount: async (userId, supplierId) => (await api.put(`/suppliers/accounts/${userId}`, { supplier_id: supplierId })).data,
+  createAccount: async data => (await api.post('/suppliers/accounts', data)).data,
 }
 
 export const supplierInquiryService = {

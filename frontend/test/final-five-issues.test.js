@@ -7,7 +7,8 @@ const source = relative => fs.readFileSync(path.resolve(process.cwd(), 'src', re
 
 test('low stock keeps row actions while removing the header receive action and identifies products', () => {
   const page = source('pages/Medicines/LowStockPage.jsx');
-  assert.equal((page.match(/Receive Stock/g) || []).length, 2);
+  assert.match(page, /to="\/purchases"[^>]*>Receive Stock<\/Link>/);
+  assert.equal((page.match(/\{stockActions\(m\)\}/g) || []).length, 2);
   assert.match(page, /uniqueMedicines/);
   assert.match(page, /productCode \|\| m\.medicine_number/);
   assert.doesNotMatch(page, /page-header-actions/);

@@ -37,6 +37,7 @@ async function parseProductImage(req, res, next) {
       declaredMimeType: String(file.type || '').toLowerCase(),
       size: file.size,
     };
+    req.imageMetadata = Object.fromEntries(['source_url', 'license', 'alt_text', 'rights_confirmed'].map(key => [key, form.get(key) ?? undefined]));
     next();
   } catch (error) {
     if (error instanceof ApiError) return next(error);

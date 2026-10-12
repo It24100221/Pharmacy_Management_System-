@@ -5,6 +5,7 @@ import { formatLKR } from '../../data/mockMedicines.js'
 import { Search, ShoppingCart, Trash2, Check } from '../../components/common/Icons.jsx'
 import { getSaleValidationError, isMedicineSellable } from '../../utils/sales.js'
 import { prescriptionService } from '../../services/apiService.js'
+import ProductThumbnail from '../../components/ProductThumbnail.jsx'
 
 const POSPage = () => {
   const navigate = useNavigate()
@@ -138,6 +139,7 @@ const POSPage = () => {
                 {searchResults.length > 0 ? (
                   searchResults.map(m => (
                     <div key={m.id} className="pos-search-item" onClick={() => addToCart(m)}>
+                      <ProductThumbnail productCode={m.productCode} medicineId={m.id} name={m.name} />
                       <div className="pos-search-item-info">
                         <div className="pos-search-item-name">{m.name}</div>
                         <div className="pos-search-item-generic">{m.genericName}</div>
@@ -167,6 +169,7 @@ const POSPage = () => {
                 <div className="cart-items">
                   {cart.map(item => (
                     <div key={item.medicineId} className="cart-item">
+                      <ProductThumbnail productCode={item.productCode} medicineId={item.medicineId} name={item.medicineName} />
                       <div className="cart-item-info">
                         <div className="cart-item-name">{item.medicineName}</div>
                         <div className="cart-item-meta">{item.productCode} | {item.batchNumber} | {formatLKR(item.unitPrice)}/unit</div>

@@ -12,6 +12,7 @@ test.after(() => { if (original) require.cache[databasePath] = original; else de
 
 function load(pool, path = '../src/repositories/supplierOperationsRepository') {
   stub.exports = { pool };
+  delete require.cache[require.resolve('../src/services/inventorySupply')];
   const file = require.resolve(path);
   delete require.cache[file];
   return { repository: require(file), restore: () => { delete require.cache[file]; } };
@@ -19,13 +20,17 @@ function load(pool, path = '../src/repositories/supplierOperationsRepository') {
 
 test('duplicate open reorder request is returned without another insert', async () => {
   let inserts = 0;
-  const loaded = load({ async execute(query) {
-    if (query.includes("status = 'OPEN'")) return [[{ reorder_request_id: 5 }]];
+  const execute = async query => {
+    if (query.includes('SELECT id FROM medicines')) return [[{id:7}]];
+    if (query.includes('SELECT * FROM v_inventory_supply_stock')) return [[{medicine_id:7,available_quantity:0,min_stock_level:10,reorder_target:100}]];
+    if (query.includes('SELECT supplier_medicine_id')) return [[{supplier_medicine_id:1}]];
+    if (query.includes("status IN ('OPEN','ORDERED')")) return [[{ reorder_request_id: 5 }]];
     if (query.includes('INSERT INTO reorder_requests')) inserts += 1;
     if (query.includes('FROM reorder_requests rr')) return [[{ reorder_request_id: 5, medicine_id: 7, status: 'OPEN' }]];
     return [[]];
-  } });
-  try { const row = await loaded.repository.createReorderRequest({ medicineId: 7, requestedQuantity: 10, requestedBy: 1 }); assert.equal(row.reorder_request_id, 5); assert.equal(inserts, 0); }
+  };
+  const loaded = load({execute, async getConnection(){return {execute,async beginTransaction(){},async commit(){},async rollback(){},release(){}}}});
+  try { const row = await loaded.repository.createReorderRequest({ medicineId: 7, supplierId:3, requestedQuantity: 10, requestedBy: 1 }); assert.equal(row.reorder_request_id, 5); assert.equal(inserts, 0); }
   finally { loaded.restore(); }
 });
 
