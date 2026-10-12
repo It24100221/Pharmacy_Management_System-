@@ -1,11 +1,21 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Plus, Pencil, Building2, Package, ArrowRight } from '../../components/common/Icons.jsx'
+import { Search, Plus, Pencil, Trash2, Building2, Package, ArrowRight } from '../../components/common/Icons.jsx'
 import { useApp } from '../../context/AppContext.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
+import { canManageSuppliers } from '../../config/authorization.js'
+import SupplierAccountManager from '../../components/SupplierAccountManager.jsx'
 
 const SupplierListPage = () => {
-  const { suppliers } = useApp()
+  const { suppliers, deleteSupplier } = useApp()
+  const { session } = useAuth()
   const [search, setSearch] = useState('')
+  const canManage = canManageSuppliers(session?.role)
+
+  const handleDelete = async (supplier) => {
+    const confirmed = window.confirm(`Delete ${supplier.company_name}?`)
+    if (confirmed) await deleteSupplier(supplier.id)
+  }
 
   const filtered = useMemo(() => {
     if (!search) return suppliers
@@ -24,20 +34,23 @@ const SupplierListPage = () => {
               <Link to="/">Home</Link><span className="sep">/</span><span>Suppliers</span>
             </div>
             <h1>Suppliers</h1>
-            <p>Manage medicine supplier information and contacts.</p>
+            <p>{canManage ? 'Manage medicine supplier information and contacts.' : 'View medicine supplier information and contacts.'}</p>
           </div>
-          <div className="page-header-actions">
-            <Link to="/purchases" className="btn btn-secondary">
-              <Package size={18} /> Receive Stock <ArrowRight size={16} />
-            </Link>
-            <Link to="/suppliers/add" className="btn btn-primary">
-              <Plus size={18} /> Add Supplier
-            </Link>
-          </div>
+          {canManage && (
+            <div className="page-header-actions">
+              <Link to="/purchases" className="btn btn-secondary">
+                <Package size={18} /> Receive Stock <ArrowRight size={16} />
+              </Link>
+              <Link to="/suppliers/add" className="btn btn-primary">
+                <Plus size={18} /> Add Supplier
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="content-container" style={{ paddingTop: 'var(--space-6)' }}>
+        {session?.role === 'ADMIN' && <SupplierAccountManager />}
         <div style={{ marginBottom: 'var(--space-5)' }}>
           <div className="search-input-wrapper" style={{ maxWidth: '500px' }}>
             <span className="search-icon"><Search size={18} /></span>
@@ -56,7 +69,7 @@ const SupplierListPage = () => {
                   <th>Phone</th>
                   <th>Email</th>
                   <th>Address</th>
-                  <th style={{ textAlign: 'center' }}>Actions</th>
+                  {canManage && <th style={{ textAlign: 'center' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -67,9 +80,12 @@ const SupplierListPage = () => {
                     <td style={{ color: 'var(--text-secondary)' }}>{supplier.phone || '-'}</td>
                     <td style={{ color: 'var(--text-secondary)' }}>{supplier.email || '-'}</td>
                     <td><small style={{ color: 'var(--text-muted)' }}>{supplier.address ? (supplier.address.length > 40 ? supplier.address.substring(0, 40) + '...' : supplier.address) : '-'}</small></td>
-                    <td style={{ textAlign: 'center' }}>
-                      <Link to={`/suppliers/edit/${supplier.id}`} className="btn btn-ghost btn-sm"><Pencil size={16} /> Edit</Link>
-                    </td>
+                    {canManage && (
+                      <td style={{ textAlign: 'center' }}>
+                        <Link to={`/suppliers/edit/${supplier.id}`} className="btn btn-ghost btn-sm"><Pencil size={16} /> Edit</Link>
+                        <button type="button" className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDelete(supplier)}><Trash2 size={16} /></button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -79,8 +95,8 @@ const SupplierListPage = () => {
           <div className="empty-state">
             <div className="empty-state-icon"><Building2 size={36} /></div>
             <h3 className="empty-state-title">No suppliers found</h3>
-            <p className="empty-state-description">{search ? 'No suppliers match your search.' : 'Add a supplier before recording a medicine purchase.'}</p>
-            {!search && <Link to="/suppliers/add" className="btn btn-primary"><Plus size={18} /> Add First Supplier</Link>}
+            <p className="empty-state-description">{search ? 'No suppliers match your search.' : canManage ? 'Add a supplier before recording a medicine purchase.' : 'No supplier records are currently available.'}</p>
+            {!search && canManage && <Link to="/suppliers/add" className="btn btn-primary"><Plus size={18} /> Add First Supplier</Link>}
           </div>
         )}
       </div>

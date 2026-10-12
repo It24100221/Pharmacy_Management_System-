@@ -1,0 +1,20 @@
+{
+  "policy": "Exact brand, strength, formulation and pack size; uncertain candidates are never imported.",
+  "approved": [],
+  "review": {
+    "1": "Sandoz 500mg capsules differ from SmithKline Beecham; 100-piece pack unverified.",
+    "2": "Generic 500mg tablets do not establish Cipla manufacturer or 100-piece packaging.",
+    "3": "Actavis 20mg capsules differ from AstraZeneca; pack size unverified.",
+    "4": "Source filename says Zithromax, but actual photo shows Sandoz 250mg/6 tablets; database says Pfizer.",
+    "5": "Candidate shows multiple strengths and non-Pfizer 28-piece packages; database is Pfizer 20mg/30 pieces.",
+    "6": "Reviewed 200mg bottle is wrong strength; alternate 400mg tablets do not establish Boots/50-piece identity.",
+    "7": "Cocillana contains different ingredients; researched dextromethorphan syrup also has unverified brand/strength/pack. No safe exact match.",
+    "8": "Strength, dosage form and pack missing; source is 10mg and does not establish Hemas brand.",
+    "9": "Strength, dosage form and pack missing; source is 10mg and does not establish Hemas brand.",
+    "10": "Name and generic are Amoxiling; active ingredient, strength, formulation and package are unknown.",
+    "33": "Strength, dosage form and pack missing; source is 10mg and does not establish Hemas brand.",
+    "34": "Alovera has no confirmed dosage form; cannot infer aloe vera gel from the name.",
+    "35": "Hemas vitamin C strength, form and pack unknown; round tablet source does not establish these.",
+    "36": "Hemas vitamin E strength, form and pack unknown; source is unbranded and low quality."
+  }
+}

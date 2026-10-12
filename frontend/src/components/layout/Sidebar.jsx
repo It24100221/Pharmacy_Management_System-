@@ -47,7 +47,10 @@ const navItems = [
   {
     section: 'Purchases',
     items: [
-      { label: 'Receive Stock', path: '/purchases', icon: Package }
+      { label: 'Receive Stock', path: '/purchases', icon: Package },
+      { label: 'Purchasing Workspace', path: '/supplier-purchasing', icon: Package },
+      { label: 'Purchase Orders', path: '/purchase-orders', icon: Package },
+      { label: 'Goods Receipts', path: '/goods-receipts', icon: Package }
     ]
   },
   {

@@ -2,6 +2,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const purchaseRepository = require('../repositories/purchaseRepository');
 const PurchaseValidator = require('../validators/purchaseValidator');
 const medicineRepository = require('../repositories/medicineRepository');
+const { parseDateRange, parsePagination, parsePositiveInteger, parseRecentLimit, parseSearch } = require('../utils/requestValidation');
 
 class PurchaseController {
   // GET /api/purchases
@@ -9,14 +10,8 @@ class PurchaseController {
   getAllPurchases = asyncHandler(async (req, res) => {
     const { search, start_date, end_date, page, limit, pagination } = req.query;
 
-    const filters = {
-      search: search || undefined,
-      start_date: start_date || undefined,
-      end_date: end_date || undefined,
-      page: page,
-      limit: limit,
-      pagination: pagination === 'false' ? false : true
-    };
+    const paging = parsePagination(req.query);
+    const filters = { search: parseSearch(search), ...parseDateRange(start_date, end_date), ...paging };
 
     const purchases = await purchaseRepository.findAll(filters);
     const total = await purchaseRepository.getCount(filters);
@@ -27,10 +22,10 @@ class PurchaseController {
       data: {
         purchases,
         pagination: {
-          current_page: parseInt(page) || 1,
-          per_page: parseInt(limit) || 50,
+          current_page: paging.page,
+          per_page: paging.limit,
           total_items: total,
-          total_pages: Math.ceil(total / (parseInt(limit) || 50))
+          total_pages: Math.ceil(total / paging.limit)
         }
       }
     });
@@ -38,7 +33,7 @@ class PurchaseController {
 
   // GET /api/purchases/recent
   getRecentPurchases = asyncHandler(async (req, res) => {
-    const limit = parseInt(req.query.limit) || 5;
+    const limit = parseRecentLimit(req.query.limit);
     const purchases = await purchaseRepository.findRecent(limit);
 
     res.json({
@@ -50,7 +45,7 @@ class PurchaseController {
 
   // GET /api/purchases/:id
   getPurchaseById = asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parsePositiveInteger(req.params.id, 'purchase ID');
 
     const purchase = await purchaseRepository.findById(id);
 
@@ -71,6 +66,9 @@ class PurchaseController {
   // POST /api/purchases
   // Creates a purchase and increases medicine stock
   createPurchase = asyncHandler(async (req, res) => {
+    if (req.body?.purchase_order_id || req.body?.goods_receipt_id) {
+      throw new (require('../middleware/errorHandler'))('Purchase-order deliveries must be posted through goods receipts', 400);
+    }
     // Validate request body
     const validatedData = PurchaseValidator.validateCreate(req.body);
 
@@ -95,7 +93,7 @@ class PurchaseController {
     }
 
     // Create purchase with items (this will also increase stock)
-    const purchase = await purchaseRepository.createWithItems(validatedData, validatedData.items);
+    const purchase = await purchaseRepository.createWithItems({ ...validatedData, actor_user_id: req.user?.userId || null }, validatedData.items);
 
     res.status(201).json({
       success: true,

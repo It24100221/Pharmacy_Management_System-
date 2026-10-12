@@ -65,10 +65,12 @@ class SupplierRepository {
 
   // Create new supplier
   async create(supplierData) {
+    const connection = await pool.getConnection();
     const query = `
       INSERT INTO suppliers (
         company_name, contact_person, email, phone, address
-      ) VALUES (?, ?, ?, ?, ?)
+      ) OUTPUT INSERTED.id AS insertId
+      VALUES (?, ?, ?, ?, ?)
     `;
 
     const values = [
@@ -79,29 +81,91 @@ class SupplierRepository {
       supplierData.address || null
     ];
 
-    const [result] = await pool.execute(query, values);
-    return result.insertId;
+    try {
+      await connection.beginTransaction();
+      const [duplicates] = await connection.execute(`
+        SELECT TOP (1) id FROM suppliers WITH (UPDLOCK, HOLDLOCK)
+        WHERE LOWER(LTRIM(RTRIM(company_name))) = LOWER(LTRIM(RTRIM(?)))
+          AND LOWER(LTRIM(RTRIM(COALESCE(email, '')))) = LOWER(LTRIM(RTRIM(COALESCE(?, ''))))
+          AND LTRIM(RTRIM(COALESCE(phone, ''))) = LTRIM(RTRIM(COALESCE(?, '')))
+      `, [supplierData.company_name, supplierData.email || null, supplierData.phone || null]);
+      if (duplicates[0]) throw new ApiError('A supplier with the same company, email, and phone already exists', 409);
+      const [result] = await connection.execute(query, values);
+      await connection.commit();
+      return result.insertId;
+    } catch (error) {
+      try { await connection.rollback(); } catch { /* preserve original error */ }
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   // Update supplier
   async update(id, supplierData) {
-    // Check if supplier exists
+    const allowedFields = ['company_name', 'contact_person', 'email', 'phone', 'address'];
+    const fields = allowedFields.filter(field => Object.hasOwn(supplierData, field));
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [existingRows] = await connection.execute(
+        'SELECT id, company_name, email, phone FROM suppliers WITH (UPDLOCK, HOLDLOCK) WHERE id = ?',
+        [id]
+      );
+      const existing = existingRows[0];
+      if (!existing) throw new ApiError('Supplier not found', 404);
+      const identity = {
+        company_name: Object.hasOwn(supplierData, 'company_name') ? supplierData.company_name : existing.company_name,
+        email: Object.hasOwn(supplierData, 'email') ? supplierData.email : existing.email,
+        phone: Object.hasOwn(supplierData, 'phone') ? supplierData.phone : existing.phone
+      };
+      const normalize = value => String(value || '').trim().toLowerCase();
+      const identityChanged = normalize(identity.company_name) !== normalize(existing.company_name)
+        || normalize(identity.email) !== normalize(existing.email)
+        || normalize(identity.phone) !== normalize(existing.phone);
+      if (identityChanged) {
+        const [duplicates] = await connection.execute(`
+          SELECT TOP (1) id FROM suppliers WITH (UPDLOCK, HOLDLOCK)
+          WHERE id <> ?
+            AND LOWER(LTRIM(RTRIM(company_name))) = LOWER(LTRIM(RTRIM(?)))
+            AND LOWER(LTRIM(RTRIM(COALESCE(email, '')))) = LOWER(LTRIM(RTRIM(COALESCE(?, ''))))
+            AND LTRIM(RTRIM(COALESCE(phone, ''))) = LTRIM(RTRIM(COALESCE(?, '')))
+        `, [id, identity.company_name, identity.email || null, identity.phone || null]);
+        if (duplicates[0]) throw new ApiError('A supplier with the same company, email, and phone already exists', 409);
+      }
+      if (fields.length > 0) {
+        const assignments = fields.map(field => `${field} = ?`).join(', ');
+        const values = fields.map(field => supplierData[field]);
+        values.push(id);
+        await connection.execute(`UPDATE suppliers SET ${assignments} WHERE id = ?`, values);
+      }
+      await connection.commit();
+    } catch (error) {
+      try { await connection.rollback(); } catch { /* preserve original error */ }
+      throw error;
+    } finally {
+      connection.release();
+    }
+    return this.findById(id);
+  }
+
+  async remove(id) {
     const existing = await this.findById(id);
     if (!existing) {
       throw new ApiError('Supplier not found', 404);
     }
 
-    const allowedFields = ['company_name', 'contact_person', 'email', 'phone', 'address'];
-    const fields = allowedFields.filter(field => Object.hasOwn(supplierData, field));
-
-    if (fields.length > 0) {
-      const assignments = fields.map(field => `${field} = ?`).join(', ');
-      const values = fields.map(field => supplierData[field]);
-      values.push(id);
-      await pool.execute(`UPDATE suppliers SET ${assignments} WHERE id = ?`, values);
+    try {
+      await pool.execute('DELETE FROM suppliers WHERE id = ?', [id]);
+      if (await this.findById(id)) {
+        throw new ApiError('Supplier was not deleted', 409);
+      }
+    } catch (error) {
+      if (error.number === 547) {
+        throw new ApiError('Supplier cannot be deleted because related purchases exist', 409);
+      }
+      throw error;
     }
-
-    return this.findById(id);
   }
 
   // Get total count

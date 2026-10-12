@@ -181,7 +181,7 @@ describe('AppContext - medicine actions', () => {
     expect(updated.name).toBe('Updated Name')
   })
 
-  it('addMedicine falls back to local when API fails', async () => {
+  it('addMedicine fails without creating a local record when API fails', async () => {
     medicineService.getAll.mockResolvedValue({ success: true, data: { medicines: [] } })
     supplierService.getAll.mockResolvedValue({ success: true, data: { suppliers: [] } })
     customerService.getAll.mockResolvedValue({ success: true, data: { customers: [] } })
@@ -194,12 +194,15 @@ describe('AppContext - medicine actions', () => {
 
     await waitFor(() => { expect(contextValue.loading).toBe(false) })
 
+    let result
     await act(async () => {
-      await contextValue.addMedicine({ name: 'Local Med', quantity: 10 })
+      result = await contextValue.addMedicine({ name: 'Rejected Med', quantity: 10 })
     })
 
-    expect(contextValue.medicines).toHaveLength(1)
-    expect(contextValue.medicines[0].name).toBe('Local Med')
+    expect(result.success).toBe(false)
+    expect(result.data).toBeUndefined()
+    expect(contextValue.medicines).toHaveLength(0)
+    expect(contextValue.toasts.at(-1)).toMatchObject({ type: 'error' })
   })
 })
 

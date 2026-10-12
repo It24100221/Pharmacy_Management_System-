@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useApp } from '../../context/AppContext.jsx'
 import { ArrowLeft } from '../../components/common/Icons.jsx'
+import { isValidSupplierPhone, SUPPLIER_PHONE_ERROR } from '../../utils/supplierValidation.js'
 
 const EditSupplierPage = () => {
   const navigate = useNavigate()
@@ -32,13 +33,15 @@ const EditSupplierPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setForm(prev => ({ ...prev, [name]: value }))
+    const nextValue = name === 'phone' ? value.replace(/\D/g, '').slice(0, 10) : value
+    setForm(prev => ({ ...prev, [name]: nextValue }))
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }))
   }
 
   const validate = () => {
     const errs = {}
     if (!form.company_name.trim()) errs.company_name = 'Supplier name is required'
+    if (!isValidSupplierPhone(form.phone)) errs.phone = SUPPLIER_PHONE_ERROR
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Invalid email format'
     setErrors(errs)
     return Object.keys(errs).length === 0
@@ -90,7 +93,10 @@ const EditSupplierPage = () => {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Phone</label>
-                  <input type="text" name="phone" value={form.phone} onChange={handleChange} className="form-control" />
+                  <input type="tel" name="phone" value={form.phone} onChange={handleChange}
+                    className={`form-control ${errors.phone ? 'is-invalid' : ''}`} placeholder="e.g. 0112345678"
+                    inputMode="numeric" pattern="[0-9]{10}" autoComplete="tel" maxLength={10} aria-invalid={Boolean(errors.phone)} />
+                  {errors.phone && <div className="form-error">{errors.phone}</div>}
                 </div>
               </div>
               <div className="form-row">

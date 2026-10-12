@@ -1,12 +1,14 @@
 import React from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useApp } from '../../context/AppContext.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
 import { ArrowLeft, Pencil, ClipboardPlus, Mail, Phone, MapPin, User } from '../../components/common/Icons.jsx'
 
 const CustomerDetailsPage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const { customers, prescriptions } = useApp()
+  const { session } = useAuth()
   const customer = customers.find(c => c.id === parseInt(id, 10))
   const customerPrescriptions = prescriptions.filter(p => p.customer_id === parseInt(id, 10))
 
@@ -36,7 +38,7 @@ const CustomerDetailsPage = () => {
             <button className="btn btn-ghost" onClick={() => navigate('/customers')}>
               <ArrowLeft size={18} /> Back
             </button>
-            <Link to={`/customers/edit/${customer.id}`} className="btn btn-secondary"><Pencil size={18} /> Edit</Link>
+            {['ADMIN', 'PHARMACIST'].includes(session?.role) && <Link to={`/customers/edit/${customer.id}`} className="btn btn-secondary"><Pencil size={18} /> Edit</Link>}
             <Link to="/prescriptions/create" className="btn btn-primary"><ClipboardPlus size={18} /> New Prescription</Link>
           </div>
         </div>

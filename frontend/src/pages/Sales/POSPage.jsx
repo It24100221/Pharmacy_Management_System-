@@ -4,6 +4,8 @@ import { useApp } from '../../context/AppContext.jsx'
 import { formatLKR } from '../../data/mockMedicines.js'
 import { Search, ShoppingCart, Trash2, Check } from '../../components/common/Icons.jsx'
 import { getSaleValidationError, isMedicineSellable } from '../../utils/sales.js'
+import { prescriptionService } from '../../services/apiService.js'
+import ProductThumbnail from '../../components/ProductThumbnail.jsx'
 
 const POSPage = () => {
   const navigate = useNavigate()
@@ -15,14 +17,29 @@ const POSPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('Cash')
   const [notes, setNotes] = useState('')
   const [prescriptionInfo, setPrescriptionInfo] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [prescriptionLoading, setPrescriptionLoading] = useState(false)
+  const prescriptionId = new URLSearchParams(location.search).get('prescriptionId')
   const prescriptionHandoffHandled = useRef(false)
+  const submissionLock = useRef(false)
 
   useEffect(() => {
+    if (prescriptionId) {
+      setPrescriptionLoading(true)
+      prescriptionService.getBilling(prescriptionId).then(response => {
+        const billing = response.data
+        setCart((billing.items || []).map(item => ({ medicineId: item.medicine_id, medicineName: item.medicine_name, productCode: item.product_code, batchNumber: item.batch_number, quantity: Number(item.quantity), unitPrice: Number(item.unit_price), lineTotal: Number(item.line_total) })))
+        setPrescriptionInfo({ id: billing.customer.id, name: billing.customer.name })
+      }).catch(error => showToast(error.response?.data?.message || 'Prescription is no longer ready for billing.', 'error'))
+        .finally(() => setPrescriptionLoading(false))
+      return
+    }
     const handoff = location.state
     if (handoff?.prescriptionItems && !prescriptionHandoffHandled.current) {
       prescriptionHandoffHandled.current = true
       setCart(handoff.prescriptionItems.map(item => ({
         medicineId: item.medicineId, medicineName: item.medicineName,
+        productCode: item.productCode,
         batchNumber: item.batchNumber, quantity: item.quantity,
         unitPrice: item.unitPrice, lineTotal: item.lineTotal,
       })))
@@ -30,13 +47,13 @@ const POSPage = () => {
       showToast('Items loaded from prescription', 'success')
       navigate(location.pathname, { replace: true, state: null })
     }
-  }, [location.pathname, location.state, navigate, showToast])
+  }, [location.pathname, location.state, location.search, navigate, showToast, prescriptionId])
 
   const searchResults = useMemo(() => {
     if (searchTerm.length < 2) return []
     const q = searchTerm.toLowerCase()
     return medicines.filter(m =>
-      m.name.toLowerCase().includes(q) || m.genericName?.toLowerCase().includes(q) || m.batchNumber?.toLowerCase().includes(q)
+      m.name.toLowerCase().includes(q) || m.genericName?.toLowerCase().includes(q) || m.batchNumber?.toLowerCase().includes(q) || m.productCode.toLowerCase().includes(q)
     ).filter(isMedicineSellable).slice(0, 8)
   }, [medicines, searchTerm])
 
@@ -46,7 +63,7 @@ const POSPage = () => {
       if (existing.quantity >= medicine.quantity) { showToast(`Only ${medicine.quantity} units available`, 'warning'); return }
       setCart(cart.map(i => i.medicineId === medicine.id ? { ...i, quantity: i.quantity + 1, lineTotal: (i.quantity + 1) * i.unitPrice } : i))
     } else {
-      setCart([...cart, { medicineId: medicine.id, medicineName: medicine.name, batchNumber: medicine.batchNumber, quantity: 1, unitPrice: medicine.unitPrice, lineTotal: medicine.unitPrice }])
+      setCart([...cart, { medicineId: medicine.id, productCode: medicine.productCode, medicineName: medicine.name, batchNumber: medicine.batchNumber, quantity: 1, unitPrice: medicine.unitPrice, lineTotal: medicine.unitPrice }])
     }
     setSearchTerm('')
   }
@@ -64,6 +81,7 @@ const POSPage = () => {
   const grandTotal = Math.max(0, subtotal - discountAmount)
 
   const handleCompleteSale = async () => {
+    if (submitting || submissionLock.current) return
     const validationError = getSaleValidationError(cart, discountAmount)
     if (validationError) { showToast(validationError, 'error'); return }
     const saleData = {
@@ -72,9 +90,12 @@ const POSPage = () => {
       sale_date: new Date().toISOString(),
       items: cart.map(i => ({ medicine_id: i.medicineId, medicine_name: i.medicineName, batch_number: i.batchNumber, quantity: i.quantity, unit_price: i.unitPrice, line_total: i.lineTotal })),
       subtotal, discount: discountAmount, total: grandTotal, payment_method: paymentMethod, notes,
+      prescription_id: prescriptionId ? Number(prescriptionId) : null,
+      idempotency_key: `pos:${crypto.randomUUID()}`,
     }
-    const result = await createSale(saleData)
-    if (result.success) navigate(`/sales/receipt/${result.data.id}`)
+    submissionLock.current = true
+    setSubmitting(true)
+    try { const result = await createSale(saleData); if (result.success) navigate(`/sales/receipt/${result.data.id}`) } finally { submissionLock.current = false; setSubmitting(false) }
   }
 
   return (
@@ -110,7 +131,7 @@ const POSPage = () => {
                 <div className="pos-search-title"><Search size={16} /> Search Medicines</div>
                 <div className="search-input-wrapper" style={{ flex: 1, maxWidth: '400px' }}>
                   <span className="search-icon"><Search size={18} /></span>
-                  <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                  <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} aria-label="Search medicines"
                     placeholder="Search by name, generic name, or batch..." className="form-control" autoFocus />
                 </div>
               </div>
@@ -118,10 +139,11 @@ const POSPage = () => {
                 {searchResults.length > 0 ? (
                   searchResults.map(m => (
                     <div key={m.id} className="pos-search-item" onClick={() => addToCart(m)}>
+                      <ProductThumbnail productCode={m.productCode} medicineId={m.id} name={m.name} />
                       <div className="pos-search-item-info">
                         <div className="pos-search-item-name">{m.name}</div>
                         <div className="pos-search-item-generic">{m.genericName}</div>
-                        <div className="pos-search-item-meta">Stock: {m.quantity} | {m.batchNumber}</div>
+                        <div className="pos-search-item-meta">{m.productCode} | Stock: {m.quantity} | {m.batchNumber}</div>
                       </div>
                       <div className="pos-search-item-price">
                         <span className="price">{formatLKR(m.unitPrice)}</span>
@@ -147,9 +169,10 @@ const POSPage = () => {
                 <div className="cart-items">
                   {cart.map(item => (
                     <div key={item.medicineId} className="cart-item">
+                      <ProductThumbnail productCode={item.productCode} medicineId={item.medicineId} name={item.medicineName} />
                       <div className="cart-item-info">
                         <div className="cart-item-name">{item.medicineName}</div>
-                        <div className="cart-item-meta">{item.batchNumber} | {formatLKR(item.unitPrice)}/unit</div>
+                        <div className="cart-item-meta">{item.productCode} | {item.batchNumber} | {formatLKR(item.unitPrice)}/unit</div>
                       </div>
                       <div className="cart-item-controls">
                         <div className="qty-control">
@@ -183,24 +206,24 @@ const POSPage = () => {
                 <div className="billing-row"><span className="billing-row-label">Subtotal</span><span className="billing-row-value">{formatLKR(subtotal)}</span></div>
                 <div className="billing-divider" />
                 <div className="form-group">
-                  <label className="form-label">Discount (LKR)</label>
-                  <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} min="0" step="0.01" placeholder="0.00" className="form-control" />
+                  <label className="form-label" htmlFor="pos-discount">Discount (LKR)</label>
+                  <input id="pos-discount" type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} min="0" step="0.01" placeholder="0.00" className="form-control" />
                 </div>
                 <div className="billing-row-total">
                   <span className="billing-row-label">Grand Total</span>
                   <span className="billing-row-value">{formatLKR(grandTotal)}</span>
                 </div>
                 <div className="form-group" style={{ marginTop: 'var(--space-4)' }}>
-                  <label className="form-label">Payment Method</label>
-                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="form-control">
+                  <label className="form-label" htmlFor="pos-payment-method">Payment Method</label>
+                  <select id="pos-payment-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="form-control">
                     <option value="Cash">Cash</option>
                     <option value="Card">Card</option>
                     <option value="Online">Bank Transfer / Online</option>
                   </select>
                 </div>
                 <div className="billing-actions">
-                  <button className="btn btn-primary btn-xl" style={{ width: '100%' }} onClick={handleCompleteSale} disabled={cart.length === 0}>
-                    <Check size={20} /> Complete Sale
+                  <button className="btn btn-primary btn-xl" style={{ width: '100%' }} onClick={handleCompleteSale} disabled={cart.length === 0 || submitting || prescriptionLoading}>
+                    <Check size={20} /> {prescriptionLoading ? 'Loading prescription...' : submitting ? 'Completing...' : 'Complete Sale'}
                   </button>
                 </div>
                 <div className="billing-note">Stock will be reduced after sale completion.</div>

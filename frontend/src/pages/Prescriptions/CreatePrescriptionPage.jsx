@@ -14,6 +14,7 @@ const CreatePrescriptionPage = () => {
   const [items, setItems] = useState([])
   const [searchMedicine, setSearchMedicine] = useState('')
   const [availabilityChecked, setAvailabilityChecked] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const filteredMedicines = searchMedicine.length >= 2
     ? medicines
@@ -24,7 +25,7 @@ const CreatePrescriptionPage = () => {
 
   const addItem = (medicine) => {
     if (!items.find(i => i.medicineId === medicine.id)) {
-      setItems([...items, { medicineId: medicine.id, medicineName: medicine.name, genericName: medicine.genericName, batchNumber: medicine.batchNumber, currentStock: medicine.quantity, unitPrice: medicine.unitPrice, quantity: 1, instructions: '', availability: medicine.quantity > 0 ? 'available' : 'out_of_stock' }])
+      setItems([...items, { medicineId: medicine.id, productCode: medicine.productCode, medicineName: medicine.name, genericName: medicine.genericName, batchNumber: medicine.batchNumber, currentStock: medicine.quantity, unitPrice: medicine.unitPrice, quantity: 1, instructions: '', availability: medicine.quantity > 0 ? 'available' : 'out_of_stock' }])
       setAvailabilityChecked(false)
     }
     setSearchMedicine('')
@@ -62,23 +63,22 @@ const CreatePrescriptionPage = () => {
   }
 
   const sendToBilling = async () => {
+    if (submitting) return
     if (!selectedCustomer) { showToast('Please select a customer', 'error'); return }
     if (!prescriptionDate) { showToast('Please select a prescription date', 'error'); return }
     const customer = customers.find(c => c.id === parseInt(selectedCustomer, 10))
     if (!customer) { showToast('The selected customer could not be found', 'error'); return }
-    const billingItems = items.filter(i => i.availability === 'available').map(i => ({ medicineId: i.medicineId, medicineName: i.medicineName, batchNumber: i.batchNumber, unitPrice: i.unitPrice, quantity: i.quantity, lineTotal: i.unitPrice * i.quantity }))
-    if (billingItems.length === 0) { showToast('No available items to send to billing', 'error'); return }
-    const prescriptionData = { customer_id: parseInt(selectedCustomer, 10), customer_name: customer ? `${customer.first_name} ${customer.last_name}` : 'Unknown', prescription_date: prescriptionDate, instructions, items: items.map(i => ({ medicine_id: i.medicineId, medicine_name: i.medicineName, generic_name: i.genericName, batch_number: i.batchNumber, quantity: i.quantity, unit_price: i.unitPrice, instructions: i.instructions })) }
+    if (!items.length || items.some(i => i.availability !== 'available')) { showToast('Every prescribed medicine must be available before billing', 'error'); return }
+    const prescriptionData = { customer_id: parseInt(selectedCustomer, 10), upload_id: location.state?.uploadId || null, prescription_date: prescriptionDate, instructions, items: items.map(i => ({ medicine_id: i.medicineId, quantity: i.quantity, instructions: i.instructions })) }
+    setSubmitting(true)
     const result = await addPrescription(prescriptionData)
-    if (!result.success) return
+    if (!result.success) { setSubmitting(false); return }
 
-    const billingResult = await preparePrescriptionForBilling(result.data.id, {
-      items: billingItems,
-      customer: { id: customer.id, name: `${customer.first_name} ${customer.last_name}` },
-      unavailableItems: items.filter(item => item.availability !== 'available'),
-    })
+    const billingResult = await preparePrescriptionForBilling(result.data.id)
+    setSubmitting(false)
     if (!billingResult.success) {
       showToast(billingResult.error || 'Failed to prepare prescription for billing', 'error')
+      navigate(`/prescriptions/${result.data.id}`)
       return
     }
     if (billingResult.data.items.length === 0) {
@@ -86,12 +86,7 @@ const CreatePrescriptionPage = () => {
       return
     }
 
-    navigate('/sales', {
-      state: {
-        prescriptionItems: billingResult.data.items,
-        prescriptionCustomer: billingResult.data.customer,
-      },
-    })
+    navigate('/billing-orders')
   }
 
   const availableCount = items.filter(i => i.availability === 'available').length
@@ -123,20 +118,20 @@ const CreatePrescriptionPage = () => {
               <div className="card-header"><span className="card-header-title">Prescription Details</span></div>
               <div className="card-body">
                 <div className="form-group">
-                  <label className="form-label">Select Customer <span className="required">*</span></label>
-                  <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="form-control">
+                  <label className="form-label" htmlFor="prescription-customer">Select Customer <span className="required">*</span></label>
+                  <select id="prescription-customer" value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="form-control">
                     <option value="">-- Select a Customer --</option>
                     {customers.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}{c.phone ? ` (${c.phone})` : ''}</option>)}
                   </select>
                 </div>
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Prescription Date</label>
-                    <input type="date" value={prescriptionDate} onChange={(e) => setPrescriptionDate(e.target.value)} className="form-control" />
+                    <label className="form-label" htmlFor="prescription-date">Prescription Date</label>
+                    <input id="prescription-date" type="date" value={prescriptionDate} onChange={(e) => setPrescriptionDate(e.target.value)} className="form-control" />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">General Instructions</label>
-                    <input type="text" value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Optional general instructions..." className="form-control" />
+                    <label className="form-label" htmlFor="prescription-instructions">General Instructions</label>
+                    <input id="prescription-instructions" type="text" value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Optional general instructions..." className="form-control" />
                   </div>
                 </div>
               </div>
@@ -147,7 +142,7 @@ const CreatePrescriptionPage = () => {
               <div className="card-body">
                 <div className="search-input-wrapper">
                   <span className="search-icon"><Search size={18} /></span>
-                  <input type="text" value={searchMedicine} onChange={(e) => setSearchMedicine(e.target.value)} placeholder="Search medicines to prescribe..." className="form-control" />
+                  <input type="text" value={searchMedicine} onChange={(e) => setSearchMedicine(e.target.value)} placeholder="Search medicines to prescribe..." className="form-control" aria-label="Search medicines to prescribe" />
                 </div>
                 {filteredMedicines.length > 0 && (
                   <div style={{ marginTop: 'var(--space-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', maxHeight: '280px', overflowY: 'auto' }}>
@@ -156,7 +151,7 @@ const CreatePrescriptionPage = () => {
                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                         <div>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)' }}>{m.name}</div>
-                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{m.genericName} | Stock: {m.quantity}</div>
+                          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{m.productCode} · {m.genericName} | Stock: {m.quantity}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}><div style={{ fontWeight: 600, color: 'var(--primary-bright)', fontSize: 'var(--font-size-sm)' }}>{formatLKR(m.unitPrice)}</div></div>
                       </div>
@@ -181,7 +176,7 @@ const CreatePrescriptionPage = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)' }}>{item.medicineName}</div>
-                            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>Stock: {item.currentStock} | {formatLKR(item.unitPrice)}/unit</div>
+                            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{item.productCode} · Stock: {item.currentStock} | {formatLKR(item.unitPrice)}/unit</div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                             <div className="qty-control">
@@ -199,7 +194,7 @@ const CreatePrescriptionPage = () => {
                             {item.availability === 'out_of_stock' && <span className="badge badge-out-of-stock"><AlertCircle size={12} /> OUT OF STOCK</span>}
                           </div>
                         )}
-                        <input type="text" value={item.instructions} onChange={(e) => updateInstructions(item.medicineId, e.target.value)} placeholder="Dosage instructions (optional)" className="form-control" style={{ padding: 'var(--space-2) var(--space-3)', fontSize: 'var(--font-size-xs)' }} />
+                        <input type="text" value={item.instructions} onChange={(e) => updateInstructions(item.medicineId, e.target.value)} placeholder="Dosage instructions (optional)" className="form-control" style={{ padding: 'var(--space-2) var(--space-3)', fontSize: 'var(--font-size-xs)' }} aria-label={`Dosage instructions for ${item.name}`} />
                       </div>
                     ))}
                   </div>
@@ -212,8 +207,8 @@ const CreatePrescriptionPage = () => {
                         <span style={{ color: 'var(--text-muted)' }}> / {items.length} items</span>
                       </div>
                     )}
-                    <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={sendToBilling} disabled={!availabilityChecked || availableCount === 0}>
-                      <Send size={18} /> Send to Billing
+                    <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={sendToBilling} disabled={submitting || !availabilityChecked || availableCount !== items.length}>
+                      <Send size={18} /> {submitting ? 'Sending...' : 'Send to Billing'}
                     </button>
                     <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textAlign: 'center', marginTop: 'var(--space-3)' }}>Only available items will be sent. Stock is NOT reduced yet.</p>
                   </div>

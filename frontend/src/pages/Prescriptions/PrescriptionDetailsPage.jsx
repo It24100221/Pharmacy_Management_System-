@@ -36,13 +36,14 @@ const PrescriptionDetailsPage = () => {
   }
 
   const sendToBilling = async () => {
+    if (prescription.status === 'DISPENSED') { showToast('This prescription has already been dispensed.', 'info'); return }
     const billingItems = (prescription.items || [])
       .filter(item => {
         const med = medicines.find(m => m.id === item.medicine_id)
         return med && med.quantity >= item.quantity && med.expiryStatus !== 'expired'
       })
       .map(item => ({
-        medicineId: item.medicine_id, medicineName: item.medicine_name,
+        medicineId: item.medicine_id, productCode: item.product_code, medicineName: item.medicine_name,
         batchNumber: item.batch_number, unitPrice: item.unit_price,
         quantity: item.quantity, lineTotal: item.unit_price * item.quantity,
       }))
@@ -62,12 +63,7 @@ const PrescriptionDetailsPage = () => {
       showToast('No available prescription items can be sent to billing', 'error')
       return
     }
-    navigate('/sales', {
-      state: {
-        prescriptionItems: result.data.items,
-        prescriptionCustomer: result.data.customer,
-      },
-    })
+    navigate(`/sales?prescriptionId=${result.data.prescriptionId || prescription.id}`)
   }
 
   return (
@@ -86,8 +82,8 @@ const PrescriptionDetailsPage = () => {
             <button className="btn btn-ghost" onClick={() => navigate('/')}>
               <ArrowLeft size={18} /> Back
             </button>
-            <button className="btn btn-primary" onClick={sendToBilling}>
-              <Send size={18} /> Send to Billing
+            <button className="btn btn-primary" onClick={sendToBilling} disabled={prescription.status === 'DISPENSED'}>
+              <Send size={18} /> {prescription.status === 'DISPENSED' ? 'Dispensed' : 'Send to Billing'}
             </button>
           </div>
         </div>
@@ -107,6 +103,7 @@ const PrescriptionDetailsPage = () => {
                 <strong>Instructions:</strong> {prescription.instructions}
               </div>
             )}
+            {prescription.sale_id && <p style={{ marginTop: 'var(--space-4)' }}>Linked sale: <Link to={`/sales/receipt/${prescription.sale_id}`}>Receipt REC-{String(prescription.sale_id).padStart(6, '0')}</Link></p>}
           </div>
         </div>
 
@@ -136,6 +133,7 @@ const PrescriptionDetailsPage = () => {
                       <td>
                         <span style={{ fontWeight: 600 }}>{item.medicine_name}</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: '2px' }}>
+                          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{item.product_code}</span>
                           {avail === 'available' && <span className="badge badge-available" style={{ fontSize: '10px' }}><CheckCircle size={10} /> AVAILABLE</span>}
                           {avail === 'insufficient' && <span className="badge badge-insufficient" style={{ fontSize: '10px' }}><AlertTriangle size={10} /> INSUFFICIENT</span>}
                           {avail === 'out_of_stock' && <span className="badge badge-out-of-stock" style={{ fontSize: '10px' }}><AlertCircle size={10} /> OUT OF STOCK</span>}

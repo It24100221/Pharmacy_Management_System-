@@ -1,19 +1,21 @@
 const asyncHandler = require('../utils/asyncHandler');
 const supplierRepository = require('../repositories/supplierRepository');
 const SupplierValidator = require('../validators/supplierValidator');
+const { parsePagination, parsePositiveInteger, parseSearch } = require('../utils/requestValidation');
 
 class SupplierController {
   // GET /api/suppliers
   // GET /api/suppliers?search=...
   getAllSuppliers = asyncHandler(async (req, res) => {
+    if (req.user.role === 'SUPPLIER') {
+      const supplierId=require('../services/inventorySupply').supplierScope(req.user);
+      const supplier=await supplierRepository.findById(supplierId);
+      return res.json({success:true,data:{suppliers:supplier ? [supplier] : [],pagination:{current_page:1,per_page:1,total_items:supplier ? 1 : 0,total_pages:1}}});
+    }
     const { search, page, limit, pagination } = req.query;
 
-    const filters = {
-      search: search || undefined,
-      page: page,
-      limit: limit,
-      pagination: pagination === 'false' ? false : true
-    };
+    const paging = parsePagination(req.query);
+    const filters = { search: parseSearch(search), ...paging };
 
     const suppliers = await supplierRepository.findAll(filters);
     const total = await supplierRepository.getCount(filters);
@@ -24,10 +26,10 @@ class SupplierController {
       data: {
         suppliers,
         pagination: {
-          current_page: parseInt(page) || 1,
-          per_page: parseInt(limit) || 50,
+          current_page: paging.page,
+          per_page: paging.limit,
           total_items: total,
-          total_pages: Math.ceil(total / (parseInt(limit) || 50))
+          total_pages: Math.ceil(total / paging.limit)
         }
       }
     });
@@ -35,7 +37,8 @@ class SupplierController {
 
   // GET /api/suppliers/:id
   getSupplierById = asyncHandler(async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parsePositiveInteger(req.params.id, 'supplier ID');
+    if (req.user.role==='SUPPLIER' && require('../services/inventorySupply').supplierScope(req.user)!==id) return res.status(404).json({success:false,message:'Supplier not found'});
 
     const supplier = await supplierRepository.findById(id);
 
@@ -85,6 +88,18 @@ class SupplierController {
       success: true,
       message: 'Supplier updated successfully',
       data: supplier
+    });
+  });
+
+  // DELETE /api/suppliers/:id
+  deleteSupplier = asyncHandler(async (req, res) => {
+    const id = parsePositiveInteger(req.params.id, 'supplier ID');
+
+    await supplierRepository.remove(id);
+
+    res.json({
+      success: true,
+      message: 'Supplier deleted successfully'
     });
   });
 }

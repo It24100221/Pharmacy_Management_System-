@@ -43,6 +43,7 @@ coverage/
 
 # Database
 .local/
+backend/.local/
 database/backups/
 *.db
 *.sqlite
@@ -52,11 +53,25 @@ database/backups/
 tmp/
 temp/
 
+# Runtime prescription files (directory retained by .gitkeep)
+backend/uploads/products/*
+!backend/uploads/products/.gitkeep
+backend/uploads/prescriptions/*
+!backend/uploads/prescriptions/.gitkeep
+
 # Miscellaneous
 *.bak
 *.swp
 *.swo
 *~
+
+# Local browser QA profiles and generated evidence
+.qa-edge-image/
+qa-auth-edge-profile/
+qa-audit/.edge-fix-profile/
+qa-audit/.edge-qa-profile/
+qa-audit/evidence/
+qa-audit/logs/
 
 # Docker
 docker-compose.override.yml

@@ -1,0 +1,6 @@
+import React from 'react'
+import { ArrowUpRight, ClipboardCheck, HeartPulse, ShoppingBag, Stethoscope } from 'lucide-react'
+
+const services = [['Medicine Supply', 'Quality medicines with reliable availability.', HeartPulse], ['Prescription Handling', 'Professional prescription checking and medicine guidance.', ClipboardCheck], ['Online Ordering', 'Customers can browse products and place orders easily.', ShoppingBag], ['Healthcare Products', 'Wide range of healthcare and personal care items.', Stethoscope]]
+const Services = () => <section className="customer-home-section customer-services" id="services"><div className="customer-home-container"><div className="customer-section-heading"><div><p className="customer-eyebrow">WHAT WE OFFER</p><h2>Everyday care, made easier.</h2></div><p>Thoughtful services for the moments when good health needs a little more support.</p></div><div className="customer-service-grid">{services.map(([title, description, Icon], index) => <article key={title}><div className="customer-service-top"><span><Icon size={22} /></span><small>0{index + 1}</small></div><h3>{title}</h3><p>{description}</p><ArrowUpRight className="customer-service-arrow" size={18} /></article>)}</div></div></section>
+export default Services

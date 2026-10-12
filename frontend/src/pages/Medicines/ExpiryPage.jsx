@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Clock, AlertCircle, CheckCircle } from '../../components/common/Icons.jsx'
 import { useApp } from '../../context/AppContext.jsx'
+import ProductThumbnail from '../../components/ProductThumbnail.jsx'
 
 const ExpiryPage = () => {
   const { medicines } = useApp()
@@ -109,7 +110,7 @@ const ExpiryPage = () => {
                   const days = getDaysRemaining(m.expiryDate)
                   return (
                     <tr key={m.id}>
-                      <td style={{ fontWeight: 600 }}>{m.name}</td>
+                      <td style={{ fontWeight: 600 }}><ProductThumbnail productCode={m.productCode} medicineId={m.id} name={m.name} />{m.name}</td>
                       <td style={{ color: 'var(--text-secondary)' }}>{m.batchNumber}</td>
                       <td style={{ color: 'var(--text-secondary)' }}>{m.expiryDate}</td>
                       <td style={{ textAlign: 'center', fontWeight: 600, color: m.expiryStatus === 'expired' ? 'var(--danger)' : 'var(--warning)' }}>

@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const salesController = require('../controllers/salesController');
+const { authorizeRoles } = require('../middleware/auth');
+
+router.use(authorizeRoles('ADMIN', 'SALES'));
 
 // Sales routes
 router.get('/', salesController.getAllSales);

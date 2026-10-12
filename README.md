@@ -3,7 +3,7 @@
 **Senevirathna Medical Pharmacy**
 **Project ID: ISE_WE_0101_19**
 
-A complete, integrated web-based Pharmacy Management System built with React (frontend) and Node.js/Express (backend) with MySQL database.
+A complete, integrated web-based Pharmacy Management System built with React (frontend) and Node.js/Express (backend) with Microsoft SQL Server.
 
 ## 📋 Project Overview
 
@@ -27,12 +27,12 @@ This system manages all aspects of pharmacy operations including:
 - Node.js
 - Express.js
 - JavaScript
-- mysql2/promise (MySQL connectivity)
+- mssql (Microsoft SQL Server connectivity)
 - dotenv (environment configuration)
 - CORS
 
 ### Database
-- MySQL with InnoDB engine
+- Microsoft SQL Server
 
 ## 📁 Project Structure
 
@@ -148,8 +148,8 @@ pharmacy-management-system/
 ## 🛠️ Setup Instructions
 
 ### Prerequisites
-- Node.js (v16 or later)
-- MySQL (v8.0 or later)
+- Node.js (v20 or later; the upload parser uses the built-in Web Streams/FormData APIs)
+- Microsoft SQL Server (2019 or later)
 - npm or yarn
 
 ### 1. Clone and Setup
@@ -160,22 +160,18 @@ git clone <repository-url>
 cd pharmacy-management-system
 ```
 
-### 2. Database Setup
+### 2. Database Setup (SQL Server)
 
-```bash
-# Create MySQL database
-mysql -u root -p
+For the existing A1/A2 database, configure `backend/.env`, then apply the ordered migrations:
 
-# In MySQL:
-CREATE DATABASE pharmacy_management;
-EXIT;
-
-# Import schema
-mysql -u root -p pharmacy_management < database/schema.sql
-
-# Import seed data
-mysql -u root -p pharmacy_management < database/seed.sql
+```powershell
+cd backend
+npm.cmd run migrate
 ```
+
+The runner creates `dbo.schema_migrations`, validates the known existing foundation, and applies each new SQL Server migration once in its own transaction. Re-running it is safe. Use `npm.cmd run inventory:database` for a credential-free structural inventory.
+
+Do **not** rerun `database/schema.sql` over an existing database. It is a historical reference and contains commerce tables that are intentionally pending future migrations. A new empty deployment needs an approved base/bootstrap migration; do not use the historical monolith as an incremental migration.
 
 ### 3. Backend Setup
 
@@ -185,16 +181,17 @@ cd backend
 # Install dependencies
 npm install
 
-# Create environment file
-cp .env.example .env
+# Create `backend/.env` from `.env.example`
 
 # Edit .env with your database credentials
 # PORT=5000
 # DB_HOST=localhost
-# DB_PORT=3306
-# DB_USER=root
-# DB_PASSWORD=your_password
+# DB_PORT=1433
+# DB_USER=sa
+# DB_PASSWORD=your_sql_server_password
 # DB_NAME=pharmacy_management
+# DB_ENCRYPT=false
+# DB_TRUST_SERVER_CERTIFICATE=true
 
 # Start the server
 npm start
@@ -227,6 +224,34 @@ npm run build
 ```
 
 The frontend will start on `http://localhost:3000`
+
+## Final evaluation package
+
+See [FINAL_EVALUATION_READINESS.md](FINAL_EVALUATION_READINESS.md) for verified evidence and limitations, [FINAL_EVALUATION_DEMO_GUIDE.md](FINAL_EVALUATION_DEMO_GUIDE.md) for the live sequence, [FINAL_PRESENTATION_CONTENT.md](FINAL_PRESENTATION_CONTENT.md) for presentation slides, and [FINAL_VIVA_PREPARATION.md](FINAL_VIVA_PREPARATION.md) for viva answers.
+
+The isolated demo fixture is documented in [FINAL_STARTUP_AND_RECOVERY_GUIDE.md](FINAL_STARTUP_AND_RECOVERY_GUIDE.md), with results in [FINAL_DEMO_TEST_RESULTS.md](FINAL_DEMO_TEST_RESULTS.md) and limitations in [FINAL_KNOWN_LIMITATIONS.md](FINAL_KNOWN_LIMITATIONS.md).
+
+The safe verification commands are:
+
+```powershell
+cd backend
+npm.cmd test
+npm.cmd run migrate
+npm.cmd run verify:api-readonly
+cd ..\frontend
+npm.cmd test -- --run
+npm.cmd run build
+```
+
+Successful write, rollback, and concurrency demonstrations must target a disposable SQL Server database populated with synthetic records. The shared development database is not reset automatically.
+
+### Authentication and customer flow
+
+The public navbar provides `About`, `Pharmacy Items`, `Login`, and `Register` links. Customer routes include `/customer-register`, `/customer-login`, `/customer/dashboard`, `/customer/checkout`, and `/my-orders`. Pharmacists review uploaded order prescriptions at `/prescription-orders`; sales staff retrieve approved SQL-backed orders at `/billing-orders`. Staff access begins at `/staff-login` and redirects to the role dashboard.
+
+Set `JWT_SECRET` in `backend/.env`. Development staff accounts are seeded locally. Credentials are provided separately and are not stored in the repository. Use `npm.cmd run security:rotate-staff` from `backend` to rotate the local accounts; the generated credential handoff is written beneath the ignored `backend/.local/` directory. Passwords in the database are bcrypt hashes.
+
+For the current SQL Server connection, open SQL Server Management Studio, select the `pharmacy_management` database, and execute `database/staff_default_users.sql`. For a MySQL deployment, translate the `IDENTITY`, `NVARCHAR`, `GO`, and `TOP` syntax to the MySQL adapter before running it; the current backend connection is `mssql`.
 
 ### 5. Access the Application
 
@@ -388,7 +413,7 @@ The database includes the following tables:
 ## 🔒 Security & Validation
 
 - All inputs are validated on both frontend and backend
-- MySQL transactions ensure data integrity
+- SQL Server transactions ensure data integrity
 - Stock levels are checked before sales
 - Insufficient stock prevents sale completion
 - Proper error messages are displayed
@@ -399,7 +424,7 @@ The database includes the following tables:
 ```env
 PORT=5000
 DB_HOST=localhost
-DB_PORT=3306
+DB_PORT=1433
 DB_USER=root
 DB_PASSWORD=
 DB_NAME=pharmacy_management

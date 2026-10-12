@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import TopNav from './TopNav.jsx'
-import Footer from './Footer.jsx'
+import StaffFooter from './Footer.jsx'
+import CustomerNavbar from '../Navbar.jsx'
+import CustomerFooter from '../Footer.jsx'
 import MobileDrawer from './MobileDrawer.jsx'
 import Toast from '../common/Toast.jsx'
 import ScrollToTop from '../common/ScrollToTop.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
 
 const AppLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { pathname, hash, key } = useLocation()
+  const { session } = useAuth()
+  const isStaff = Boolean(session && session.role !== 'CUSTOMER')
 
   useEffect(() => {
     if (!hash) window.scrollTo({ top: 0, behavior: 'instant' })
@@ -24,8 +29,8 @@ const AppLayout = () => {
           <span className="utility-workspace"><span aria-hidden="true" /> Senevirathna Medical Pharmacy</span>
         </div>
       </div>
-      <TopNav onMobileOpen={() => setMobileOpen(true)} />
-      <MobileDrawer isOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+      {isStaff ? <TopNav onMobileOpen={() => setMobileOpen(true)} /> : <CustomerNavbar onMobileOpen={() => setMobileOpen(true)} />}
+      <MobileDrawer isOpen={mobileOpen} publicOnly={!isStaff} onClose={() => setMobileOpen(false)} />
 
       <main className="main-content" id="main-content" tabIndex={-1}>
         <div className="page-content">
@@ -33,7 +38,7 @@ const AppLayout = () => {
         </div>
       </main>
 
-      <Footer />
+      {isStaff ? <StaffFooter /> : <CustomerFooter />}
       <Toast />
       <ScrollToTop />
     </div>

@@ -1,0 +1,10 @@
+const express = require('express');
+const controller = require('../controllers/purchaseOrderController');
+const { authorizeRoles } = require('../middleware/auth');
+const router = express.Router();
+const write = authorizeRoles('ADMIN', 'INVENTORY');
+router.get('/', authorizeRoles('ADMIN', 'INVENTORY', 'SUPPLIER'), controller.list);
+router.get('/:id', authorizeRoles('ADMIN', 'INVENTORY', 'SUPPLIER'), controller.get);
+router.post('/', write, controller.create);
+router.patch('/:id/status', authorizeRoles('ADMIN','INVENTORY','SUPPLIER'), controller.updateStatus);
+module.exports = router;

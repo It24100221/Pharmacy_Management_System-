@@ -6,15 +6,35 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "migrate": "node src/scripts/migrate.js",
+    "inventory:database": "node src/scripts/inventoryDatabase.js",
+    "verify:prescription-storage": "node src/scripts/verifyPrescriptionStorage.js",
+    "verify:product-catalog": "node src/scripts/verifyProductCatalog.js",
+    "inventory:product-images": "node src/scripts/productImageInventory.js",
+    "preview:product-images": "node src/scripts/productImageInventory.js",
+    "prepare:product-image-review": "node src/scripts/productImageInventory.js --prepare-review",
+    "verify:product-image-metadata": "node src/scripts/verifyProductImageMetadata.js",
+    "security:rotate-staff": "node src/scripts/rotateStaffPasswords.js",
+    "verify:registration": "node src/scripts/verifyRegistration.js",
+    "verify:customer-order-flow": "node src/scripts/verifyCustomerOrderFlow.js",
+    "verify:sales-summary": "node src/scripts/verifySalesSummary.js",
+    "verify:inventory-lifecycle": "node src/scripts/verifyInventoryLifecycle.js",
+    "verify:api-readonly": "node src/scripts/verifyReadOnlyApi.js",
     "test": "node --test"
   },
-  "keywords": ["pharmacy", "management", "api"],
+  "keywords": [
+    "pharmacy",
+    "management",
+    "api"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "jsonwebtoken": "^9.0.2",
     "express": "^4.18.2",
-    "mysql2": "^3.6.5"
+    "mssql": "^11.0.2"
   }
 }

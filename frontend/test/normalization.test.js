@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   computeStockStatus,
   getExpiryStatus,
+  normalizeCatalogProduct,
   normalizeMedicine,
   normalizePrescription,
   normalizeSale,
@@ -42,6 +43,7 @@ test('medicine normalization supports API and local field names while preserving
   })
 
   assert.equal(apiMedicine.id, 3)
+  assert.equal(apiMedicine.productCode, '')
   assert.equal(apiMedicine.quantity, 0)
   assert.equal(apiMedicine.unitPrice, 850)
   assert.equal(apiMedicine.minStockLevel, 0)
@@ -52,6 +54,39 @@ test('medicine normalization supports API and local field names while preserving
   const localMedicine = normalizeMedicine({ quantity: 12, minStockLevel: 5, unitPrice: 125 })
   assert.equal(localMedicine.stockStatus, 'in_stock')
   assert.equal(localMedicine.unitPrice, 125)
+})
+
+test('catalogue rendering model preserves SQL/API identity and commerce values for three products', () => {
+  const products = [
+    ['1', 'P0000000001', 'Amoxicillin 500mg Capsules (100pcs)', 'MEDICINE', 'Medicine', '2500', '147', 'AVAILABLE'],
+    ['2', 'P0000000002', 'Paracetamol 500mg Tablets (100pcs)', 'MEDICINE', 'Medicine', '850', '202', 'AVAILABLE'],
+    ['3', 'P0000000003', 'Omeprazole 20mg Capsules (30pcs)', 'MEDICINE', 'Medicine', '1200', '85', 'AVAILABLE'],
+  ].map(([product_id, product_code, name, category_code, category, price, stock_quantity, availability]) =>
+    normalizeCatalogProduct({
+      product_id,
+      product_code,
+      name,
+      description: `${name} description`,
+      category_code,
+      category,
+      price,
+      stock_quantity,
+      availability,
+      prescription_required: false,
+      image_url: null,
+    })
+  )
+
+  assert.deepEqual(
+    products.map(({ productCode, name, category, price, stockQuantity, availability }) => ({
+      productCode, name, category, price, stockQuantity, availability,
+    })),
+    [
+      { productCode: 'P0000000001', name: 'Amoxicillin 500mg Capsules (100pcs)', category: 'Medicine', price: 2500, stockQuantity: 147, availability: 'AVAILABLE' },
+      { productCode: 'P0000000002', name: 'Paracetamol 500mg Tablets (100pcs)', category: 'Medicine', price: 850, stockQuantity: 202, availability: 'AVAILABLE' },
+      { productCode: 'P0000000003', name: 'Omeprazole 20mg Capsules (30pcs)', category: 'Medicine', price: 1200, stockQuantity: 85, availability: 'AVAILABLE' },
+    ]
+  )
 })
 
 test('sale normalization handles both list and receipt response shapes', () => {
@@ -74,6 +109,7 @@ test('sale normalization handles both list and receipt response shapes', () => {
     name: 'Paracetamol',
     medicine_id: null,
     medicine_name: 'Paracetamol',
+    product_code: '',
     batch_number: '',
     quantity: 2,
     unit_price: 150,

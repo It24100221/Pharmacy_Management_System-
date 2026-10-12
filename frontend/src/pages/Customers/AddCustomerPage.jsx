@@ -59,37 +59,37 @@ const AddCustomerPage = () => {
             <div className="card-body">
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">First Name <span className="required">*</span></label>
-                  <input type="text" name="first_name" value={form.first_name} onChange={handleChange}
-                    className={`form-control ${errors.first_name ? 'is-invalid' : ''}`} placeholder="e.g. Kamal" />
-                  {errors.first_name && <div className="form-error">{errors.first_name}</div>}
+                  <label className="form-label" htmlFor="add-customer-first-name">First Name <span className="required">*</span></label>
+                  <input id="add-customer-first-name" type="text" name="first_name" value={form.first_name} onChange={handleChange}
+                    className={`form-control ${errors.first_name ? 'is-invalid' : ''}`} placeholder="e.g. Kamal" aria-invalid={Boolean(errors.first_name)} aria-describedby={errors.first_name ? 'add-customer-first-name-error' : undefined} />
+                  {errors.first_name && <div id="add-customer-first-name-error" className="form-error" role="alert">{errors.first_name}</div>}
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Last Name <span className="required">*</span></label>
-                  <input type="text" name="last_name" value={form.last_name} onChange={handleChange}
-                    className={`form-control ${errors.last_name ? 'is-invalid' : ''}`} placeholder="e.g. Perera" />
-                  {errors.last_name && <div className="form-error">{errors.last_name}</div>}
+                  <label className="form-label" htmlFor="add-customer-last-name">Last Name <span className="required">*</span></label>
+                  <input id="add-customer-last-name" type="text" name="last_name" value={form.last_name} onChange={handleChange}
+                    className={`form-control ${errors.last_name ? 'is-invalid' : ''}`} placeholder="e.g. Perera" aria-invalid={Boolean(errors.last_name)} aria-describedby={errors.last_name ? 'add-customer-last-name-error' : undefined} />
+                  {errors.last_name && <div id="add-customer-last-name-error" className="form-error" role="alert">{errors.last_name}</div>}
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Phone</label>
-                  <input type="text" name="phone" value={form.phone} onChange={handleChange} className="form-control" placeholder="e.g. 077-1234567" />
+                  <label className="form-label" htmlFor="add-customer-phone">Phone</label>
+                  <input id="add-customer-phone" type="text" name="phone" value={form.phone} onChange={handleChange} className="form-control" placeholder="e.g. 077-1234567" />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Email</label>
-                  <input type="email" name="email" value={form.email} onChange={handleChange}
-                    className={`form-control ${errors.email ? 'is-invalid' : ''}`} placeholder="e.g. kamal@gmail.com" />
-                  {errors.email && <div className="form-error">{errors.email}</div>}
+                  <label className="form-label" htmlFor="add-customer-email">Email</label>
+                  <input id="add-customer-email" type="email" name="email" value={form.email} onChange={handleChange}
+                    className={`form-control ${errors.email ? 'is-invalid' : ''}`} placeholder="e.g. kamal@gmail.com" aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'add-customer-email-error' : undefined} />
+                  {errors.email && <div id="add-customer-email-error" className="form-error" role="alert">{errors.email}</div>}
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Address</label>
-                <textarea name="address" value={form.address} onChange={handleChange} className="form-control" rows="2" placeholder="Customer address..." />
+                <label className="form-label" htmlFor="add-customer-address">Address</label>
+                <textarea id="add-customer-address" name="address" value={form.address} onChange={handleChange} className="form-control" rows="2" placeholder="Customer address..." />
               </div>
               <div className="form-group">
-                <label className="form-label">Date of Birth</label>
-                <input type="date" name="date_of_birth" value={form.date_of_birth} onChange={handleChange} className="form-control" />
+                <label className="form-label" htmlFor="add-customer-dob">Date of Birth</label>
+                <input id="add-customer-dob" type="date" name="date_of_birth" value={form.date_of_birth} onChange={handleChange} className="form-control" />
               </div>
             </div>
             <div className="card-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)' }}>

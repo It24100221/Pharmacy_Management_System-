@@ -1,11 +1,20 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Plus, Pencil, Eye, Users } from '../../components/common/Icons.jsx'
+import { Search, Plus, Pencil, Eye, Trash2, Users } from '../../components/common/Icons.jsx'
 import { useApp } from '../../context/AppContext.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
 
 const CustomerListPage = () => {
-  const { customers } = useApp()
+  const { customers, deleteCustomer } = useApp()
+  const { session } = useAuth()
+  const canManage = ['ADMIN', 'PHARMACIST'].includes(session?.role)
   const [search, setSearch] = useState('')
+
+  const handleDelete = async (customer) => {
+    const customerName = [customer.first_name, customer.last_name].filter(Boolean).join(' ').trim() || customer.email || `Customer #${customer.id}`
+    const confirmed = window.confirm(`Are you sure you want to delete this customer: ${customerName}? This will deactivate the customer while preserving historical records.`)
+    if (confirmed) await deleteCustomer(customer.id)
+  }
 
   const filtered = useMemo(() => {
     if (!search) return customers
@@ -26,7 +35,7 @@ const CustomerListPage = () => {
           </div>
           <div className="page-header-actions">
             <Link to="/prescriptions/create" className="btn btn-secondary">Create Prescription</Link>
-            <Link to="/customers/add" className="btn btn-primary"><Plus size={18} /> Add Customer</Link>
+            {canManage && <Link to="/customers/add" className="btn btn-primary"><Plus size={18} /> Add Customer</Link>}
           </div>
         </div>
       </div>
@@ -55,7 +64,8 @@ const CustomerListPage = () => {
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: 'var(--space-1)', justifyContent: 'center' }}>
                         <Link to={`/customers/${customer.id}`} className="btn btn-ghost btn-sm" title="View Details"><Eye size={16} /></Link>
-                        <Link to={`/customers/edit/${customer.id}`} className="btn btn-ghost btn-sm" title="Edit"><Pencil size={16} /></Link>
+                        {canManage && <><Link to={`/customers/edit/${customer.id}`} className="btn btn-ghost btn-sm" title="Edit"><Pencil size={16} /></Link>
+                        <button type="button" className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDelete(customer)}><Trash2 size={16} /></button></>}
                       </div>
                     </td>
                   </tr>
